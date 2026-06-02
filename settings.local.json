@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"C:\\\\Users\\\\kaenu\\\\OneDrive\\\\デスクトップ\\\\Kyukyoku-app\\\\\")",
+      "Bash(find /c/Users/kaenu -type f -name \"data.js\" 2>/dev/null)"
+    ]
+  }
+}

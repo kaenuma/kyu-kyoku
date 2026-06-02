@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>球極 - ゴルフ罰金計算システム</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d0d2b;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Courier New',monospace;overflow:hidden}
+#wrap{position:relative;width:100vw;height:100vh;max-width:800px}
+canvas#bg{position:absolute;inset:0;width:100%;height:100%}
+#intro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;transition:opacity .5s}
+#intro.out{opacity:0;pointer-events:none}
+#ttl{font-size:min(72px,12vw);color:#ffd700;text-shadow:4px 4px 0 #5a3e00;letter-spacing:.3em;font-weight:900;opacity:0;margin-bottom:16px}
+#ttl.on{animation:flash .8s forwards}
+@keyframes flash{0%,30%{opacity:0}50%,70%{opacity:1}80%{opacity:.15}100%{opacity:1}}
+canvas#gc{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+#sub{font-size:14px;color:#6688cc;letter-spacing:.3em;margin-top:16px;opacity:0;transition:opacity .8s}
+#sub.on{opacity:1}
+#hint{font-size:12px;color:#7799bb;margin-top:24px;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+#menu{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;opacity:0;pointer-events:none;transition:opacity .5s}
+#menu.on{opacity:1;pointer-events:auto}
+#menu-ttl{font-size:min(48px,9vw);color:#ffd700;text-shadow:2px 2px 0 #5a3e00;letter-spacing:.2em;margin-bottom:36px}
+#menu-box{border:3px double #ffd700;padding:20px 56px;background:rgba(5,5,28,.95)}
+.mi{font-size:min(18px,4.5vw);color:#fff;padding:10px 0;cursor:pointer;letter-spacing:.1em}
+.mi.on{color:#ffd700}
+.mc{display:inline-block;width:1.2em}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="bg"></canvas>
+  <div id="intro">
+    <div id="ttl">球　極</div>
+    <canvas id="gc" width="320" height="240"></canvas>
+    <div id="sub">ゴルフ罰金計算システム</div>
+    <div id="hint">▼ タップしてスタート ▼</div>
+  </div>
+  <div id="menu">
+    <div id="menu-ttl">⛳ 球 極</div>
+    <div id="menu-box">
+      <div class="mi on" data-i="0" onclick="event.stopPropagation();location.href='mail.html#member'"><span class="mc">▶</span>メンバー管理</div>
+      <div class="mi" data-i="1" onclick="event.stopPropagation();location.href='mail.html#compose'"><span class="mc">　</span>Email本文作成</div>
+      <div class="mi" data-i="2" onclick="event.stopPropagation();location.href='mail.html#score'"><span class="mc">　</span>当日スコア管理</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+ =====================================================================
+ 球極 INTRO v10 — canvas.rotate(θ) 符号バグ修正版
+ =====================================================================
+
+ 【BUG FIX】
+   canvas.rotate(θ) transforms local (0, L) to global:
+     gx = PX - L·sin(θ)    ← MINUS sign (previously coded as PLUS)
+     gy = PY + L·cos(θ)
+   All θ values have been recalculated with correct sign.
+
+ 【拘束条件1】右打ち・お腹側ビュー、+X=ターゲット
+   Flag: (250, 180)
+
+ 【拘束条件2】ボール弾道 maxY=202 ≤ GND=210 ✓ SAFE
+
+ 【拘束条件3】face normal at impact = (1, 0) = 真右 ✓
+   θ_imp=-0.4978, φ_imp=0.4978 (θ+φ=0)
+
+ FIVE STATES (CORRECTED):
+   1.ADDRESS:   θ=-0.498 φ=+0.498 phase=0.00   cos=1.0  sin=0.0  薄い刃
+   2.TOP:       θ=+2.500 φ=-0.902 phase=+1.60  cos=-0.04 sin=1.0  フェース表全開
+   3.DOWNSWING: θ=+0.800 φ=+0.098 phase=+0.90  cos=0.62 sin=0.78 表パネル見え
+   4.IMPACT:    θ=-0.498 φ=+0.498 phase=0.00   cos=1.0  sin=0.0  薄い刃 ✓
+   5.FOLLOW:    θ=-2.360 φ=+0.498 phase=-1.86  cos=-0.28 sin=-0.96 裏面=ターンオーバー
+
+ SWING PATH:
+   backswing:  RIGHT-DOWN → LEFT-UP    (away from target) ✓
+   downswing:  LEFT-UP → RIGHT-DOWN    (return to ball)   ✓
+   follow:     RIGHT-DOWN → RIGHT-UP   (toward target)    ✓
+ =====================================================================
+*/
+
+// ===== STARS =====
+(function(){
+  const c=document.getElementById('bg');
+  function rs(){const r=c.parentElement.getBoundingClientRect();c.width=r.width;c.height=r.height}
+  rs();window.addEventListener('resize',rs);
+  const x=c.getContext('2d');
+  const S=Array.from({length:100},()=>({
+    x:Math.random(),y:Math.random(),
+    r:Math.random()*1.5+.3,p:Math.random()*6.28,s:Math.random()*.01+.003
+  }));
+  (function d(t){
+    x.clearRect(0,0,c.width,c.height);
+    S.forEach(s=>{
+      x.fillStyle=`rgba(200,215,255,${.12+.7*Math.sin(t*s.s*70+s.p)})`;
+      x.beginPath();x.arc(s.x*c.width,s.y*c.height,s.r,0,6.28);x.fill();
+    });
+    requestAnimationFrame(d);
+  })(0);
+})();
+
+// ===== CANVAS =====
+const gc=document.getElementById('gc');
+const g=gc.getContext('2d');
+const W=320,H=240;
+
+// --- VERIFIED CONSTANTS ---
+const PX=110, PY=110;
+const GND=210;
+const BX=160, BY=202;
+const FX=250, FY=180;
+const SHAFT=95;
+
+// θ,φ at impact (CORRECTED SIGNS)
+// θ_imp = atan2((PX-BX)/SHAFT, (BY-PY)/SHAFT) = -0.4978
+// φ_imp = target_angle - θ_imp = -0.2397 - (-0.4978) = 0.2581
+// face·target = 1.000000 ✓
+// θ+φ=0 at impact → face normal = (cos(0), sin(0)) = (1, 0) = 真右 ✓
+const θI=-0.4978, φI=0.4978;
+
+const eio=t=>t<.5?2*t*t:-1+(4-2*t)*t;
+const ei3=t=>t*t*t;
+const eo3=t=>1-Math.pow(1-t,3);
+
+// ② θ(p): shaft rotation — CORRECTED
+// ADDRESS(-0.498) → TOP(+2.50) → IMPACT(-0.498) → FOLLOW(-2.36)
+function θ_of(p){
+  const A=θI, T=2.50, I=θI, F=-2.36;
+  if(p<=0) return A;
+  if(p<.35) return A+(T-A)*eio(p/.35);                    // backswing → LEFT-UP
+  if(p<.42) return T+.03*Math.sin((p-.35)/.07*Math.PI);   // pause at top
+  if(p<.57){const t=(p-.42)/.15;return T+(I-T)*ei3(t);}   // downswing → ball
+  return I+(F-I)*eo3((p-.57)/.43);                          // follow → RIGHT-UP
+}
+
+// ② φ(p): wrist rotation
+// 【ルール4】impact後はφ固定(=φI) → θだけ変化するので
+// phase(=θ+φ)が急速にマイナスへ → 劇的なターンオーバー
+function φ_of(p){
+  const A=φI, T=φI-1.4, I=φI, F=φI;  // F=φI: impact後に手首ロック
+  if(p<=0) return A;
+  if(p<.35) return A+(T-A)*eio(p/.35);                    // cock (face opens)
+  if(p<.42) return T;                                       // hold at top
+  if(p<.57){const t=(p-.42)/.15;return T+(I-T)*ei3(t);}   // release (squares)
+  return I;                                                  // locked → turnover from θ
+}
+
+// Body coil — CORRECTED direction
+function bRot(p){
+  if(p<.35) return .18*eio(p/.35);         // coil right (away from target)
+  if(p<.42) return .18;
+  if(p<.57){const t=(p-.42)/.15;return .18-.50*ei3(t);}
+  return -.32-.10*eo3((p-.57)/.43);         // open left (toward target)
+}
+
+let ballHit=false;
+
+// Ball trajectory: 右上に打ち出し → 放物線 → フラッグへ降下
+function drawBall(bf){
+  if(bf<=0||bf>=1)return;
+  const P0={x:BX,y:BY},
+        P1={x:BX+50,y:BY-110},
+        P2={x:FX-30,y:FY-60},
+        P3={x:FX,y:FY};
+  function bez(t){
+    const m=1-t;
+    return {
+      x: m*m*m*P0.x+3*m*m*t*P1.x+3*m*t*t*P2.x+t*t*t*P3.x,
+      y: m*m*m*P0.y+3*m*m*t*P1.y+3*m*t*t*P2.y+t*t*t*P3.y
+    };
+  }
+  const b=bez(bf);
+  const r=Math.max(2,7*(1-bf*.5));
+  const a=Math.max(0,1-bf*.7);
+
+  if(bf>.04){
+    const prev=bez(Math.max(0,bf-.06));
+    const gr=g.createLinearGradient(prev.x,prev.y,b.x,b.y);
+    gr.addColorStop(0,'rgba(255,255,220,0)');
+    gr.addColorStop(1,`rgba(255,255,220,${a*.5})`);
+    g.strokeStyle=gr;g.lineWidth=r*.8;g.lineCap='round';
+    g.beginPath();g.moveTo(prev.x,prev.y);g.lineTo(b.x,b.y);g.stroke();
+  }
+
+  g.fillStyle=`rgba(255,255,255,${a})`;
+  g.strokeStyle=`rgba(200,200,200,${a*.4})`;g.lineWidth=.5;
+  g.beginPath();g.arc(b.x,b.y,r,0,6.28);g.fill();g.stroke();
+}
+
+function frame(sp,bf){
+  g.clearRect(0,0,W,H);
+  const θ=θ_of(sp), φ=φ_of(sp), br=bRot(sp);
+
+  // --- GROUND ---
+  g.fillStyle='#1a4a1a';g.fillRect(0,GND,W,H-GND);
+  g.strokeStyle='#2d8a2d';g.lineWidth=2;
+  g.beginPath();g.moveTo(0,GND);g.lineTo(W,GND);g.stroke();
+  g.strokeStyle='#2a7a2a';g.lineWidth=1;
+  for(let i=5;i<W;i+=12){g.beginPath();g.moveTo(i,GND);g.lineTo(i+4,GND-5);g.stroke();}
+
+  // --- FLAG (250, 180) 遠くの地面 ---
+  g.strokeStyle='#bbb';g.lineWidth=1.5;
+  g.beginPath();g.moveTo(FX,GND);g.lineTo(FX,FY-20);g.stroke();
+  g.fillStyle='#ff3333';
+  g.beginPath();g.moveTo(FX,FY-20);g.lineTo(FX-14,FY-12);g.lineTo(FX,FY-4);g.closePath();g.fill();
+  g.fillStyle='#0a2a0a';
+  g.beginPath();g.ellipse(FX,GND+1,10,3,0,0,6.28);g.fill();
+
+  // --- SHADOW ---
+  g.fillStyle='rgba(0,0,0,.12)';
+  g.beginPath();g.ellipse(PX+8,GND+4,35,6,0,0,6.28);g.fill();
+
+  // --- TEE + BALL ---
+  if(!ballHit){
+    g.fillStyle='#cc9900';
+    g.beginPath();g.moveTo(BX-2,GND);g.lineTo(BX+2,GND);g.lineTo(BX+1,BY+5);g.lineTo(BX-1,BY+5);g.closePath();g.fill();
+    g.fillStyle='white';g.strokeStyle='#ddd';g.lineWidth=.5;
+    g.beginPath();g.arc(BX,BY,6,0,6.28);g.fill();g.stroke();
+  }
+
+  // --- LEGS ---
+  g.save();
+  g.translate(PX+2,GND-55);g.rotate(br*.25);
+  g.strokeStyle='#1a3a99';g.lineWidth=13;g.lineCap='round';
+  g.beginPath();g.moveTo(8,-3);g.lineTo(16,55);g.stroke();
+  g.beginPath();g.moveTo(-8,-3);g.lineTo(-13,55);g.stroke();
+  g.strokeStyle='#222';g.lineWidth=10;
+  g.beginPath();g.moveTo(10,53);g.lineTo(24,53);g.stroke();
+  g.beginPath();g.moveTo(-19,53);g.lineTo(-7,53);g.stroke();
+  g.restore();
+
+  // --- TORSO ---
+  g.save();
+  g.translate(PX,PY+22);g.rotate(br*.55);
+  g.fillStyle='#eee';
+  g.beginPath();
+  g.moveTo(-18,-18);g.lineTo(18,-18);
+  g.quadraticCurveTo(22,-14,22,0);g.lineTo(22,30);
+  g.quadraticCurveTo(22,36,16,36);g.lineTo(-16,36);
+  g.quadraticCurveTo(-22,36,-22,30);g.lineTo(-22,0);
+  g.quadraticCurveTo(-22,-14,-18,-18);g.closePath();g.fill();
+  g.fillStyle='#ddd';
+  g.beginPath();g.moveTo(-6,-18);g.lineTo(10,-18);g.lineTo(8,-10);g.lineTo(-4,-10);g.closePath();g.fill();
+  g.fillStyle='#333';g.fillRect(-22,30,44,6);
+  g.fillStyle='#ffd700';g.fillRect(-5,30.5,10,5);
+  g.restore();
+
+  // --- NECK ---
+  g.fillStyle='#e8c8a8';g.fillRect(PX-5,PY-10,10,14);
+
+  // --- HEAD (faces RIGHT = target) ---
+  g.fillStyle='#e8c8a8';
+  g.beginPath();g.arc(PX+2,PY-28,16,0,6.28);g.fill();
+  g.fillStyle='#d4b090';
+  g.beginPath();g.ellipse(PX-13,PY-28,3.5,5,0,0,6.28);g.fill();
+  g.fillStyle='#2a1a0a';
+  g.beginPath();g.arc(PX-5,PY-30,2.2,0,6.28);g.fill();
+  g.fillStyle='white';
+  g.beginPath();g.arc(PX-6,PY-31,.7,0,6.28);g.fill();
+  g.strokeStyle='#c4a070';g.lineWidth=1.3;g.lineCap='round';
+  g.beginPath();g.moveTo(PX+14,PY-26);g.lineTo(PX+17,PY-21);g.stroke();
+  g.strokeStyle='#aa7055';g.lineWidth=1.2;
+  g.beginPath();g.moveTo(PX+8,PY-18);g.lineTo(PX+14,PY-18);g.stroke();
+
+  // --- CAP (brim RIGHT) ---
+  g.fillStyle='white';
+  g.beginPath();
+  g.arc(PX+2,PY-44,18,Math.PI,-.05,false);
+  g.lineTo(PX+18,PY-38);g.lineTo(PX-15,PY-38);g.closePath();g.fill();
+  g.fillStyle='#ddd';
+  g.beginPath();
+  g.moveTo(PX+4,PY-38);
+  g.quadraticCurveTo(PX+28,PY-37,PX+32,PY-30);
+  g.lineTo(PX+22,PY-27);
+  g.quadraticCurveTo(PX+16,PY-32,PX+4,PY-34);
+  g.closePath();g.fill();
+
+  // ========== SWING GROUP: rotate(θ) ==========
+  g.save();
+  g.translate(PX,PY);
+  g.rotate(θ);
+
+  // Sleeves
+  g.strokeStyle='#eee';g.lineWidth=14;g.lineCap='round';
+  g.beginPath();g.moveTo(-13,0);g.lineTo(-9,10);g.stroke();
+  g.beginPath();g.moveTo(13,0);g.lineTo(9,10);g.stroke();
+
+  // Lead arm (far side)
+  g.strokeStyle='#e8c8a8';g.lineWidth=9;g.lineCap='round';
+  g.beginPath();g.moveTo(-9,10);g.quadraticCurveTo(-5,28,0,45);g.stroke();
+  // Trail arm (near side)
+  g.strokeStyle='#d8b898';g.lineWidth=9;
+  g.beginPath();g.moveTo(9,10);g.quadraticCurveTo(8,28,0,45);g.stroke();
+
+  // Glove
+  g.fillStyle='#f5f5f5';g.strokeStyle='#ccc';g.lineWidth=.7;
+  g.beginPath();g.ellipse(0,45,10,7,0,0,6.28);g.fill();g.stroke();
+  // Trail hand
+  g.fillStyle='#e8c8a8';g.strokeStyle='#c8a878';g.lineWidth=.7;
+  g.beginPath();g.ellipse(0,55,10,7,0,0,6.28);g.fill();g.stroke();
+
+  // Grip
+  g.strokeStyle='#222';g.lineWidth=5.5;g.lineCap='butt';
+  g.beginPath();g.moveTo(0,48);g.lineTo(0,62);g.stroke();
+
+  // Shaft
+  const sg=g.createLinearGradient(0,62,0,SHAFT);
+  sg.addColorStop(0,'#ccc');sg.addColorStop(.5,'#999');sg.addColorStop(1,'#bbb');
+  g.strokeStyle=sg;g.lineWidth=2.8;g.lineCap='round';
+  g.beginPath();g.moveTo(0,62);g.lineTo(0,SHAFT);g.stroke();
+
+  // ===== CLUB HEAD: rotate(φ) =====
+  // ローカル座標: 原点=シャフト先端, +X=トウ, +Y=ソール
+  // θ+φ=0 at impact → +X=真右(ターゲット) ✓
+  g.save();
+  g.translate(0,SHAFT);
+  g.rotate(φ);
+
+  // phase = θ+φ (グローバルでのヘッド回転角)
+  //   0 = impact (薄い刃)
+  //   +1.6 = top (フェース表が見える)
+  //   -1.86 = follow (フェース裏=劇的ターンオーバー)
+  const phase = θ + φ;
+  const cp = Math.cos(phase);    // トウ方向の伸縮・反転
+  const sp2 = Math.sin(phase);   // フェース面の見え量(符号=表/裏)
+  const isFront = sp2 >= 0;      // true=フェース表, false=バックフェース
+
+  // 【ルール3】ホーゼル — ヒール位置に常時固定
+  const hoselLen = 3.5;
+  g.strokeStyle='#999';g.lineWidth=2;g.lineCap='round';
+  g.beginPath();g.moveTo(0,0);g.lineTo(0,hoselLen);g.stroke();
+
+  g.save();
+  g.translate(0, hoselLen);  // ヒール位置(固定)
+
+  // ヘッド寸法
+  const toeLen = 13;
+  const topY = -2.5;
+  const soleY = 2.5;
+
+  // 【ルール1】トウ方向の動的制御
+  // cos(phase): impact=1(右), top≈0(edge), follow<0(反転=ターンオーバー)
+  const dynToe = toeLen * cp;
+
+  // 【ルール2】フェース面の深度(符号=方向)
+  const faceD = 4 * Math.abs(sp2);
+  // 表が見える時は-X方向(後ろ)に奥行き、裏なら+X方向
+  const depthDir = isFront ? -1 : 1;
+  const dOff = faceD * depthDir;
+
+  // 色(表/裏で微妙に変える)
+  const bodyColor = isFront ? '#c0c0c0' : '#a8a8a8';
+  const panelColor = isFront ? '#b5b5b5' : '#8a8a8a';
+
+  // ヘッド本体（パースを伴うパラレログラム）
+  // 頂点: heel-face(0,topY), toe-face(dynToe,topY),
+  //        toe-back(dynToe+dOff,soleY), heel-back(dOff,soleY)
+  const x0=0, x1=dynToe, x2=dynToe+dOff, x3=dOff;
+  const allX=[x0,x1,x2,x3];
+  const headW = Math.max(...allX) - Math.min(...allX);
+
+  if(headW > 0.5) {
+    g.fillStyle=bodyColor;g.strokeStyle='#888';g.lineWidth=.5;
+    g.beginPath();
+    g.moveTo(x0, topY);      // heel face edge
+    g.lineTo(x1, topY);      // toe face edge
+    g.lineTo(x2, soleY);     // toe back edge (sheared)
+    g.lineTo(x3, soleY);     // heel back edge (sheared)
+    g.closePath();
+    g.fill();g.stroke();
+
+    // フェース面/バックフェース面(奥行きパネル)
+    if(faceD > 0.5) {
+      g.fillStyle=panelColor;
+      g.beginPath();
+      g.moveTo(x0, topY);
+      g.lineTo(x3, soleY);
+      // パネル幅 = 奥行きの40%
+      const pw = 0.4;
+      g.lineTo(x3+(x2-x3)*pw, soleY);
+      g.lineTo(x0+(x1-x0)*pw, topY);
+      g.closePath();
+      g.fill();
+
+      // スコアライン(フェース表の時のみ)
+      if(isFront && faceD > 1) {
+        g.strokeStyle='#777';g.lineWidth=.3;
+        for(let i=0;i<4;i++){
+          const t = (i+1)/5;
+          const ly = topY + t*(soleY-topY);
+          const lx0 = x0 + t*(x3-x0);
+          const lx1 = lx0 + (x1-x0)*pw*0.8;
+          g.beginPath();g.moveTo(lx0+.5,ly);g.lineTo(lx1,ly);g.stroke();
+        }
+      }
+    }
+
+    // リーディングエッジ（フェース最前線）
+    g.strokeStyle='#aaa';g.lineWidth=.6;
+    g.beginPath();g.moveTo(x0,topY);g.lineTo(x1,topY);g.stroke();
+
+    // ソール（底面ハイライト）
+    g.strokeStyle='#d0d0d0';g.lineWidth=.8;
+    g.beginPath();g.moveTo(x3,soleY);g.lineTo(x2,soleY);g.stroke();
+
+    // トップライン
+    g.strokeStyle='#999';g.lineWidth=.4;
+    g.beginPath();g.moveTo(x0,topY);g.lineTo(x1,topY);g.stroke();
+  }
+
+  g.restore(); // ヒール位置
+  g.restore(); // φ
+  g.restore(); // θ
+
+  // Ball flight
+  if(ballHit && bf!==undefined) drawBall(bf);
+}
+
+// ===== ANIMATION =====
+let run=false,t0=null;
+const TL={T:.25,S:.7,D:1.9,U:2.2,M:3.8};
+
+function tick(ts){
+  if(!t0)t0=ts;
+  const e=(ts-t0)/1000;
+  const sp=Math.min(1,Math.max(0,(e-TL.S)/TL.D));
+  const impT=TL.S+.57*TL.D;
+  if(e>=impT&&!ballHit)ballHit=true;
+  const bf=ballHit?Math.min(1,(e-impT)/1.2):undefined;
+  frame(sp,bf);
+  if(e>=TL.T){const t=document.getElementById('ttl');if(!t.classList.contains('on'))t.classList.add('on')}
+  if(e>=TL.U)document.getElementById('sub').classList.add('on');
+  if(e>=TL.M){run=false;document.getElementById('intro').classList.add('out');document.getElementById('menu').classList.add('on');return}
+  if(run)requestAnimationFrame(tick);
+}
+
+function go(){
+  if(run)return;
+  ballHit=false;t0=null;
+  document.getElementById('ttl').classList.remove('on');
+  document.getElementById('sub').classList.remove('on');
+  run=true;frame(0);requestAnimationFrame(tick);
+}
+
+function reset(){
+  run=false;ballHit=false;t0=null;
+  document.getElementById('intro').classList.remove('out');
+  document.getElementById('menu').classList.remove('on');
+  document.getElementById('ttl').classList.remove('on');
+  document.getElementById('sub').classList.remove('on');
+  frame(0);
+}
+
+// Menu
+const mis=document.querySelectorAll('.mi');
+let ci=0;
+mis.forEach((el,i)=>{
+  el.addEventListener('mouseenter',()=>{ci=i;upd()});
+  el.addEventListener('click',e=>{e.stopPropagation();ci=i;upd()});
+});
+function upd(){mis.forEach((el,i)=>{el.classList.toggle('on',i===ci);el.querySelector('.mc').textContent=i===ci?'▶':'　'})}
+
+document.addEventListener('click',()=>{
+  if(document.getElementById('menu').classList.contains('on'))reset();
+  else if(!run)go();
+});
+
+frame(0);
+</script>
+</body>
+</html>

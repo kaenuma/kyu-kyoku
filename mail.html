@@ -1,0 +1,2027 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>球極 - メール管理</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d0d2b;color:#fff;font-family:'Courier New',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+
+/* --- DQ THEME --- */
+.dq-box{border:3px double #ffd700;background:rgba(5,5,28,.95);padding:20px 28px;margin:12px 0;max-width:540px;width:90vw}
+.dq-title{color:#ffd700;text-shadow:2px 2px 0 #5a3e00;font-size:min(28px,6vw);letter-spacing:.15em;text-align:center;margin:16px 0 8px}
+.dq-sub{color:#6688cc;font-size:12px;text-align:center;letter-spacing:.1em;margin-bottom:12px}
+
+/* --- NAV --- */
+.nav{display:flex;gap:10px;justify-content:center;margin:12px 0;flex-wrap:wrap}
+.nav-btn{font-family:inherit;font-size:14px;color:#ffd700;background:transparent;border:1px solid #ffd700;padding:8px 20px;cursor:pointer;letter-spacing:.1em;transition:all .2s}
+.nav-btn:hover{background:#ffd70020;color:#fff}
+.nav-btn.home{border-color:#6688cc;color:#6688cc}
+.nav-btn.home:hover{background:#6688cc20;color:#fff}
+
+/* --- MENU ITEMS --- */
+.menu-item{font-size:16px;color:#fff;padding:12px 8px;cursor:pointer;letter-spacing:.1em;transition:color .15s;border-bottom:1px solid #ffffff10}
+.menu-item:hover,.menu-item.on{color:#ffd700}
+.menu-item .mc{display:inline-block;width:1.4em}
+
+/* --- MEMBER LIST --- */
+.member-count{color:#ffd700;font-size:14px;text-align:center;margin:8px 0 4px;letter-spacing:.1em}
+.member-list{max-height:340px;overflow-y:auto;margin:8px 0}
+.member-list::-webkit-scrollbar{width:6px}
+.member-list::-webkit-scrollbar-thumb{background:#ffd70044;border-radius:3px}
+.member-card{border:1px solid #ffffff20;padding:10px 12px;margin:4px 0;cursor:pointer;transition:all .2s;position:relative}
+.member-card:hover{border-color:#ffd700;background:#ffd70008}
+.member-card.selected{border-color:#ffd700;background:#ffd70015}
+.member-card.bulk-selected{border-color:#66aaff;background:#4477ff15}
+.member-card.bulk-selected .m-check{display:block;color:#66aaff}
+.member-card .m-name{color:#ffd700;font-size:14px;font-weight:bold}
+.member-card .m-email{color:#8899bb;font-size:12px;margin-top:2px}
+.member-card .m-meta{color:#556677;font-size:11px;margin-top:2px}
+.member-card .m-check{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:16px;color:#ffd700;display:none}
+.member-card.selected .m-check{display:block}
+
+/* --- FORM --- */
+.form-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:100;display:none}
+.form-overlay.show{display:flex}
+.form-box{border:3px double #ffd700;background:#0d0d2b;padding:24px;max-width:420px;width:90vw}
+.form-title{color:#ffd700;font-size:18px;text-align:center;margin-bottom:16px;letter-spacing:.1em}
+.form-group{margin:10px 0}
+.form-label{color:#8899bb;font-size:12px;display:block;margin-bottom:4px;letter-spacing:.05em}
+.form-label .req{color:#ff6666}
+.form-input{width:100%;font-family:inherit;font-size:14px;background:#0a0a20;border:1px solid #ffffff30;color:#fff;padding:8px 10px;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:#ffd700}
+.form-input.error{border-color:#ff4444}
+select.form-input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%23ffd700'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;cursor:pointer}
+.form-actions{display:flex;gap:10px;justify-content:center;margin-top:18px}
+.form-btn{font-family:inherit;font-size:13px;padding:8px 24px;cursor:pointer;border:1px solid;letter-spacing:.05em;transition:all .2s}
+.form-btn.ok{color:#ffd700;border-color:#ffd700;background:transparent}
+.form-btn.ok:hover{background:#ffd70020}
+.form-btn.cancel{color:#888;border-color:#555;background:transparent}
+.form-btn.cancel:hover{background:#ffffff10}
+.form-btn.danger{color:#ff6666;border-color:#ff4444;background:transparent}
+.form-btn.danger:hover{background:#ff000015}
+
+/* --- TOAST --- */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(120%);background:#1a3a1a;border:2px solid #4a4;color:#8f8;padding:14px 24px;font-size:14px;font-family:inherit;z-index:200;transition:transform .3s ease-out;letter-spacing:.05em;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.5);max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.err{background:#3a1a1a;border-color:#a44;color:#f88}
+
+/* --- EMAIL COPY --- */
+.email-actions{display:flex;gap:8px;justify-content:center;margin:12px 0;flex-wrap:wrap}
+.email-preview{background:#0a0a1a;border:1px solid #ffffff15;padding:12px;margin:8px 0;font-size:12px;color:#8899bb;max-height:160px;overflow-y:auto;word-break:break-all;line-height:1.6}
+.select-info{color:#6688cc;font-size:12px;text-align:center;margin:4px 0}
+
+/* --- COMPOSE --- */
+.compose-section{border-top:1px solid #ffffff15;margin-top:14px;padding-top:14px}
+.compose-label{color:#8899bb;font-size:12px;display:block;margin-bottom:4px;letter-spacing:.05em}
+.compose-label .req{color:#ff6666}
+.compose-input{width:100%;font-family:inherit;font-size:14px;background:#0a0a20;border:1px solid #ffffff25;color:#fff;padding:8px 10px;outline:none;margin-bottom:10px;transition:border-color .2s}
+.compose-input:focus{border-color:#ffd700}
+select.compose-input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%23ffd700'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;cursor:pointer}
+.compose-input::-webkit-calendar-picker-indicator{filter:invert(1) sepia(1) saturate(3) hue-rotate(180deg);cursor:pointer}
+.tee-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.tee-row .compose-input{margin-bottom:0;flex:1}
+.tee-add-btn{font-family:inherit;font-size:18px;color:#ffd700;background:transparent;border:1px solid #ffd70044;width:34px;height:34px;cursor:pointer;flex-shrink:0;transition:all .2s}
+.tee-add-btn:hover{background:#ffd70020}
+.fee-row{display:flex;gap:10px}
+.fee-row .compose-input{margin-bottom:0;flex:1}
+.fee-label-inline{color:#8899bb;font-size:11px;display:block;margin-bottom:4px}
+.style-btns{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.style-btn{font-family:inherit;font-size:13px;color:#888;background:transparent;border:1px solid #444;padding:6px 14px;cursor:pointer;letter-spacing:.05em;transition:all .2s}
+.style-btn.on{color:#ffd700;border-color:#ffd700;background:#ffd70015}
+.body-preview{background:#0a0a1a;border:1px solid #ffffff15;padding:14px;margin:8px 0;font-size:13px;color:#aabbcc;white-space:pre-wrap;max-height:260px;overflow-y:auto;line-height:1.8;letter-spacing:.03em}
+.copy-big-btn{width:100%;font-family:inherit;font-size:15px;color:#0d0d2b;background:#ffd700;border:none;padding:12px;cursor:pointer;letter-spacing:.1em;font-weight:bold;transition:opacity .2s;margin-top:4px}
+.copy-big-btn:hover{opacity:.85}
+
+/* --- SCORE CALC (老眼対応) --- */
+.score-big-title{font-size:22px;color:#ffd700;text-align:center;font-weight:bold;margin:12px 0 16px;letter-spacing:.15em}
+.score-label{font-size:16px;color:#8899bb;display:block;margin:12px 0 6px;letter-spacing:.05em}
+.score-input{width:100%;font-family:inherit;font-size:18px;background:#0a0a20;border:2px solid #ffffff35;color:#fff;padding:12px 14px;outline:none;margin-bottom:12px;transition:border-color .2s}
+.score-input:focus{border-color:#ffd700}
+select.score-input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='10'%3E%3Cpath d='M0 0l7 10 7-10z' fill='%23ffd700'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;cursor:pointer}
+.score-input::-webkit-calendar-picker-indicator{filter:invert(1) sepia(1) saturate(3) hue-rotate(180deg);cursor:pointer}
+.score-checkbox{margin:14px 0}
+.score-checkbox label{font-size:18px;color:#fff;cursor:pointer;display:flex;align-items:center;gap:10px}
+.score-checkbox input[type="checkbox"]{width:24px;height:24px;cursor:pointer}
+.score-btn{font-family:inherit;font-size:18px;padding:14px 28px;cursor:pointer;border:2px solid;letter-spacing:.1em;font-weight:bold;transition:all .2s;margin:8px 4px}
+.score-btn.primary{color:#0d0d2b;background:#ffd700;border-color:#ffd700}
+.score-btn.primary:hover{opacity:.85}
+.score-btn.secondary{color:#8899bb;background:transparent;border-color:#555}
+.score-btn.secondary:hover{background:#ffffff10}
+.score-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:18px}
+.score-table th{background:#1a3a1a;color:#ffd700;padding:14px 10px;border:1px solid #3a5a3a;font-weight:bold;letter-spacing:.05em}
+.score-table td{background:#0a1a0a;color:#fff;padding:14px 10px;border:1px solid #2a4a2a;text-align:center}
+.score-table td.name{text-align:left;font-weight:bold;color:#ffd700}
+.score-table td.penalty{font-size:16px;font-weight:bold;color:#ff6666;background:#330000}
+.score-table td.penalty.bold{font-size:18px;font-weight:bold;color:#ff8888}
+.score-table td.zero{color:#88aa88}
+.score-total{font-size:24px;color:#ffd700;text-align:center;font-weight:bold;margin:20px 0;padding:16px;background:#1a3a1a;border:2px solid #ffd700;letter-spacing:.1em}
+.score-actions{display:flex;gap:12px;justify-content:center;margin:20px 0;flex-wrap:wrap}
+
+/* --- MOBILE RESPONSIVE --- */
+@media(max-width:640px){
+  body{padding:8px}
+  .dq-box{padding:16px 20px;max-width:100vw}
+  .dq-title{font-size:24px;margin:12px 0 6px}
+  .dq-sub{font-size:11px;margin-bottom:10px}
+
+  .compose-label,.form-label,.score-label{font-size:13px}
+  .compose-input,.form-input,.score-input{font-size:16px;padding:12px;min-height:44px}
+  select.compose-input,select.form-input,select.score-input{padding-right:36px}
+
+  .tee-row{gap:6px;margin-bottom:10px}
+  .tee-row .compose-input{font-size:15px;padding:10px}
+  .tee-add-btn{width:44px;height:44px;font-size:20px}
+
+  .style-btn{padding:8px 16px;font-size:14px}
+  .copy-big-btn,.score-btn{font-size:15px;padding:14px}
+
+  .body-preview{font-size:12px;padding:10px;line-height:1.6}
+
+  .member-card{padding:12px}
+  .member-card .m-name{font-size:15px}
+  .member-card .m-email{font-size:13px;margin-top:4px}
+
+  .score-table{font-size:15px}
+  .score-table th,.score-table td{padding:10px 6px}
+  .score-big-title{font-size:18px;margin-bottom:12px}
+
+  .nav{gap:8px;margin:10px 0}
+  .nav-btn{padding:8px 14px;font-size:13px}
+}
+</style>
+</head>
+<body>
+
+<!-- === PAGE: メール管理トップ === -->
+<div id="pg-top">
+  <div class="dq-title">⛳ 球 極</div>
+  <div class="dq-box">
+    <div class="menu-item on" onclick="goPage('member')">
+      <span class="mc">▶</span>メンバー管理
+    </div>
+    <div class="menu-item" onclick="goPage('compose')">
+      <span class="mc">　</span>Email本文作成
+    </div>
+    <div class="menu-item" onclick="goPage('score')">
+      <span class="mc">　</span>当日スコア管理
+    </div>
+  </div>
+  <div class="nav">
+    <button class="nav-btn home" onclick="goHome()">◀ ホームに戻る</button>
+  </div>
+</div>
+
+<!-- === PAGE: メンバー確認 === -->
+<div id="pg-member" style="display:none">
+  <div class="dq-title">⛳ 球 極</div>
+  <div class="dq-sub">メンバー確認</div>
+  <div class="dq-box">
+    <div class="member-count" id="member-count">現在メンバー：0名</div>
+    <input type="text" id="member-search-input" class="compose-input" placeholder="🔍 名前またはメールで検索" style="margin-bottom:12px">
+    <div class="nav" style="margin:8px 0 12px">
+      <button class="nav-btn" onclick="openForm('add')">＋ Add</button>
+      <button class="nav-btn" onclick="deleteSelected()">✕ Delete</button>
+      <button class="nav-btn" onclick="editSelected()">✎ Edit</button>
+    </div>
+    <div class="member-list" id="member-list"></div>
+    <!-- 一括選択・emailコピーエリア -->
+    <div style="border-top:1px solid #ffffff15;margin-top:12px;padding-top:12px">
+      <div style="color:#6688cc;font-size:12px;text-align:center;margin-bottom:10px;letter-spacing:.03em">
+        💡 メンバーをタップして選択 → emailをまとめてコピーできます
+      </div>
+      <div class="nav" style="margin:0 0 8px">
+        <button class="nav-btn" onclick="selectAllMembers()" id="btn-select-all">☐ 一括選択</button>
+        <button class="nav-btn" onclick="deselectAllMembers()" style="color:#556677;border-color:#334455">✕ 解除</button>
+      </div>
+      <div id="member-copy-info" style="font-size:12px;color:#6688cc;text-align:center;margin-bottom:8px;display:none">
+        <span id="member-selected-count">0</span>名選択中
+      </div>
+      <button class="copy-big-btn" onclick="copySelectedEmails(this)" id="btn-copy-emails" style="display:none">
+        📋 選択したメンバーのemailをコピー
+      </button>
+    </div>
+    <input type="file" id="file-import" accept=".xlsx,.xls,.csv" style="display:none" onchange="importFile(event)">
+  </div>
+
+  <!-- データ入出力：枠外・控えめ表示 -->
+  <div style="max-width:540px;width:90vw;margin:6px auto;text-align:right;padding:0 4px">
+    <span style="font-size:11px;color:#667788;letter-spacing:.05em">
+      <a href="#" onclick="exportExcel();return false" style="color:#667788;text-decoration:none;margin-right:12px">↓ Excel出力</a>
+      <a href="#" onclick="document.getElementById('file-import').click();return false" style="color:#667788;text-decoration:none;margin-right:12px">↑ ファイル読込</a>
+      <a href="#" onclick="downloadSample();return false" style="color:#667788;text-decoration:none">サンプル</a>
+    </span>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn" onclick="goPage('top')">◀ 戻る</button>
+    <button class="nav-btn home" onclick="goHome()">🏠 ホーム</button>
+  </div>
+</div>
+
+<!-- === PAGE: email宛先コピー === -->
+<div id="pg-email" style="display:none">
+  <div class="dq-title">⛳ 球 極</div>
+  <div class="dq-sub">email宛先コピー</div>
+  <div class="dq-box">
+    <div class="member-count" id="email-count">対象：0名</div>
+    <div class="select-info">タップでメンバーを選択/解除</div>
+    <div class="member-list" id="email-list"></div>
+    <div class="email-actions">
+      <button class="nav-btn" onclick="selectAllEmails()">全選択</button>
+      <button class="nav-btn" onclick="deselectAllEmails()">全解除</button>
+    </div>
+    <div class="email-preview" id="email-preview">メンバーを選択してください</div>
+    <div class="email-actions">
+      <button class="nav-btn ok" id="btn-copy-emails2" onclick="copyEmails(this)" style="border-color:#ffd700;color:#ffd700;font-size:15px;padding:10px 32px">📋 emailをコピー</button>
+    </div>
+  </div>
+  <div class="nav">
+    <button class="nav-btn" onclick="goPage('top')">◀ 戻る</button>
+    <button class="nav-btn home" onclick="goHome()">🏠 ホーム</button>
+  </div>
+</div>
+
+<!-- === PAGE: email本文作成 === -->
+<div id="pg-compose" style="display:none">
+  <div class="dq-title">⛳ 球 極</div>
+  <div class="dq-sub">email本文作成</div>
+  <div class="dq-box" style="padding-bottom:8px">
+
+    <!-- メールスタイル -->
+    <label class="compose-label">メールレイアウト</label>
+    <div class="style-btns" id="style-btns">
+      <button class="style-btn on" data-style="cute"    onclick="setStyle('cute')">かわいい</button>
+      <button class="style-btn"   data-style="stylish"  onclick="setStyle('stylish')">おしゃれ</button>
+      <button class="style-btn"   data-style="simple"   onclick="setStyle('simple')">シンプル</button>
+      <button class="style-btn"   data-style="elegant"  onclick="setStyle('elegant')">上品</button>
+    </div>
+
+    <!-- 日にち -->
+    <label class="compose-label">日にち <span class="req">*</span></label>
+    <input class="compose-input" type="date" id="c-date">
+
+    <!-- コース名 -->
+    <label class="compose-label">ゴルフコース名 <span class="req">*</span></label>
+    <input class="compose-input" type="text" id="c-course" placeholder="例：大利根カントリークラブ">
+
+    <!-- 住所 -->
+    <label class="compose-label">住所</label>
+    <input class="compose-input" type="text" id="c-address" placeholder="例：茨城県猿島郡境町大字青柳4552">
+
+    <!-- Tee Time -->
+    <label class="compose-label">Tee Time <span class="req">*</span>（最大3つ）</label>
+    <div id="tee-rows">
+      <div class="tee-row">
+        <select class="compose-input tee-ampm" style="flex:0 0 60px">
+          <option value="">--</option>
+          <option value="AM">午前</option>
+          <option value="PM">午後</option>
+        </select>
+        <input class="compose-input tee-hour" type="number" min="1" max="12" placeholder="時" style="flex:0 0 70px">
+        <input class="compose-input tee-min" type="number" min="0" max="59" step="5" placeholder="分" style="flex:0 0 70px">
+      </div>
+    </div>
+    <button class="tee-add-btn" id="tee-add-btn" onclick="addTeeRow()" title="Tee Time を追加">＋</button>
+
+    <!-- Fee -->
+    <label class="compose-label" style="margin-top:10px">Fee</label>
+    <div style="margin-bottom:10px">
+      <span class="fee-label-inline">🛒 カート付</span>
+      <div class="fee-row">
+        <input class="compose-input" id="c-fee-cart" type="text" placeholder="例：$85 / ¥8,500">
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <span class="fee-label-inline">🚶 歩き（ウォーキング）</span>
+      <div class="fee-row">
+        <input class="compose-input" id="c-fee-walk" type="text" placeholder="例：$65 / ¥6,500">
+      </div>
+    </div>
+
+    <!-- プレビュー -->
+    <div class="compose-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span class="compose-label" style="margin:0">📄 プレビュー</span>
+        <button class="nav-btn" onclick="generateBody()" style="padding:4px 14px;font-size:12px">更新</button>
+      </div>
+      <div class="body-preview" id="body-preview">日にち・コース名・Tee Timeを入力すると本文が生成されます</div>
+      <button class="copy-big-btn" id="btn-copy-body" onclick="copyBody(this)">📋 本文をコピー</button>
+      <button class="copy-big-btn" id="btn-save-compose" onclick="saveComposeData(this)" style="background:#1a4a1a;color:#88cc88;border:2px solid #4a8a4a;margin-top:8px">💾 スコア計算用に保存</button>
+      <div id="compose-saved-msg" style="display:none;text-align:center;color:#88cc88;font-size:12px;margin-top:6px;letter-spacing:.05em">✓ 保存済み — スコア計算ページに反映されます</div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn" onclick="goPage('top')">◀ 戻る</button>
+    <button class="nav-btn home" onclick="goHome()">🏠 ホーム</button>
+  </div>
+</div>
+
+
+<!-- === PAGE: スコア計算 === -->
+<div id="pg-score" style="display:none">
+  <div class="dq-title">⛳ 球 極</div>
+  <div class="dq-sub">スコア計算</div>
+  <div class="dq-box">
+    <div class="score-big-title">📊 当日スコア・罰金計算</div>
+
+    <!-- Par 入力 -->
+    <div id="sc-par-input">
+      <label class="score-label">本日のPar <span class="req">*</span></label>
+      <input class="score-input" type="number" id="sc-par" min="70" max="75" placeholder="例: 72" value="72">
+      <button class="score-btn primary" onclick="confirmPar()" style="margin-top:10px">Par を設定</button>
+    </div>
+
+    <!-- ラウンド選択/新規作成 -->
+    <div id="sc-round-section" style="display:none">
+      <label class="score-label">ラウンド選択</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+        <select class="score-input" id="sc-round" style="flex:1;margin-bottom:0">
+          <option value="">＋ 新規ラウンド作成</option>
+        </select>
+        <button id="btn-delete-round" onclick="deleteRound()"
+          style="display:none;flex-shrink:0;font-family:inherit;font-size:14px;color:#ff6666;background:transparent;border:2px solid #ff4444;padding:10px 14px;cursor:pointer;letter-spacing:.05em;white-space:nowrap"
+          onmouseover="this.style.background='#ff000020'" onmouseout="this.style.background='transparent'">
+          ✕ 削除
+        </button>
+      </div>
+
+      <div id="sc-new-round" style="display:none">
+      <div id="sc-shared-msg" style="display:none;color:#88cc88;font-size:13px;margin-bottom:12px;padding:8px;border:1px solid #4a8a4a;background:#0a1a0a;text-align:center">
+        ✓ email本文作成の情報を反映しています（上書き編集可）
+      </div>
+      <label class="score-label">日にち</label>
+      <input class="score-input" type="date" id="sc-date">
+      <label class="score-label">コース名</label>
+      <input class="score-input" type="text" id="sc-course" placeholder="例：大利根カントリークラブ">
+      <label class="score-label">住所（任意）</label>
+      <input class="score-input" type="text" id="sc-address" placeholder="例：茨城県猿島郡境町...">
+      <button class="score-btn primary" onclick="createRound()">ラウンド作成</button>
+    </div>
+
+    <!-- 参加者選択 -->
+    <div id="sc-participants" style="display:none">
+      <label class="score-label">参加者選択（最大12人）</label>
+      <div style="font-size:13px;color:#8899bb;margin-bottom:8px">
+        選択中: <span id="sc-participant-count" style="color:#ffd700;font-weight:bold">0</span>人
+      </div>
+      <input type="text" id="sc-participant-search" class="score-input" placeholder="🔍 名前またはメールで検索" style="margin-bottom:12px">
+      <div id="sc-member-list" style="margin:10px 0;max-height:300px;overflow-y:auto;border:1px solid #334455;padding:10px;border-radius:4px"></div>
+      <button class="score-btn primary" onclick="startScoreEntry()" style="margin-top:12px">スコア入力へ進む</button>
+    </div>
+
+    <!-- スコア入力 -->
+    <div id="sc-entry" style="display:none">
+      <label class="score-label">スコア入力</label>
+      <div style="font-size:12px;color:#8899bb;margin-bottom:12px;padding:8px;background:#0a1a0a;border:1px solid #334455;border-radius:4px;letter-spacing:.05em">
+        📝 HC は編集可能です（変更があれば修正してください） | 💡 すべて入力で自動計算
+      </div>
+      <table class="score-table" id="sc-table">
+        <thead>
+          <tr>
+            <th style="width:30%">名前</th>
+            <th style="width:15%">HC（編集可）</th>
+            <th style="width:20%">スコア</th>
+            <th style="width:15%">罰金</th>
+          </tr>
+        </thead>
+        <tbody id="sc-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- 計算結果 -->
+    <div id="sc-results" style="display:none">
+      <label class="score-label">計算結果</label>
+      <table class="score-table">
+        <thead>
+          <tr>
+            <th style="width:30%">名前</th>
+            <th style="width:15%">HC</th>
+            <th style="width:15%">スコア</th>
+            <th style="width:15%">基準</th>
+            <th style="width:25%">罰金</th>
+          </tr>
+        </thead>
+        <tbody id="sc-result-tbody"></tbody>
+      </table>
+      <div class="score-total" id="sc-total">合計罰金: $0</div>
+      <div class="score-actions">
+        <button class="score-btn secondary" onclick="copyPenaltyResults(this)">📧 結果をメールコピー</button>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn" onclick="goPage('top')">◀ 戻る</button>
+    <button class="nav-btn home" onclick="goHome()">🏠 ホーム</button>
+  </div>
+</div>
+
+<!-- === MODAL: Add/Edit フォーム === -->
+<div class="form-overlay" id="form-overlay">
+  <div class="form-box">
+    <div class="form-title" id="form-title">メンバー追加</div>
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="f-name" placeholder="山田 太郎">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email <span class="req">* 必須</span></label>
+      <input class="form-input" id="f-email" type="email" placeholder="taro@example.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">性別</label>
+      <select class="form-input" id="f-gender">
+        <option value="">-- 選択 --</option>
+        <option value="男">男</option>
+        <option value="女">女</option>
+        <option value="他">他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">電話番号</label>
+      <input class="form-input" id="f-phone" type="tel" placeholder="090-1234-5678">
+    </div>
+    <div class="form-actions">
+      <button class="form-btn cancel" onclick="closeForm()">キャンセル</button>
+      <button class="form-btn ok" id="form-submit" onclick="submitForm()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- === DELETE 確認 === -->
+<div class="form-overlay" id="delete-overlay">
+  <div class="form-box" style="text-align:center">
+    <div class="form-title">削除確認</div>
+    <p style="color:#aaa;font-size:13px;margin:12px 0" id="delete-msg">このメンバーを削除しますか？</p>
+    <div class="form-actions">
+      <button class="form-btn cancel" onclick="closeDelete()">キャンセル</button>
+      <button class="form-btn danger" onclick="confirmDelete()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- === IMPORT 確認 === -->
+<div class="form-overlay" id="import-overlay">
+  <div class="form-box">
+    <div class="form-title">インポート確認</div>
+
+    <!-- DB件数 vs ファイル件数 比較 -->
+    <div id="import-counts" style="display:flex;justify-content:center;gap:16px;margin:10px 0;flex-wrap:wrap">
+      <div style="text-align:center;padding:10px 18px;border:1px solid #334455;background:#0a0a1a">
+        <div style="font-size:11px;color:#6688cc;margin-bottom:4px">現在のDB</div>
+        <div id="import-db-count" style="font-size:24px;color:#ffd700;font-weight:bold">—</div>
+        <div style="font-size:11px;color:#445566">件</div>
+      </div>
+      <div style="display:flex;align-items:center;color:#445566;font-size:20px">→</div>
+      <div style="text-align:center;padding:10px 18px;border:1px solid #4a8a4a;background:#0a1a0a">
+        <div style="font-size:11px;color:#88cc88;margin-bottom:4px">ファイル</div>
+        <div id="import-file-count" style="font-size:24px;color:#88cc88;font-weight:bold">—</div>
+        <div style="font-size:11px;color:#445566">件</div>
+      </div>
+    </div>
+
+    <p style="color:#aaa;font-size:13px;margin:8px 0;text-align:center" id="import-msg"></p>
+    <div class="member-list" id="import-preview" style="max-height:180px;margin:10px 0"></div>
+
+    <!-- 進捗表示エリア（インポート中のみ表示） -->
+    <div id="import-progress" style="display:none;text-align:center;padding:14px 0">
+      <div style="color:#ffd700;font-size:15px;margin-bottom:8px" id="import-progress-msg">処理中...</div>
+      <div style="background:#0a0a20;border:1px solid #334455;height:8px;border-radius:4px;overflow:hidden;margin:0 8px">
+        <div id="import-progress-bar" style="height:100%;background:#ffd700;width:0%;transition:width .2s"></div>
+      </div>
+      <div style="color:#6688cc;font-size:11px;margin-top:8px">ボタンは一度だけ押してください。完了までお待ちください。</div>
+    </div>
+
+    <div class="form-actions" style="flex-wrap:wrap;gap:8px" id="import-actions">
+      <button class="form-btn cancel" onclick="closeImport()">キャンセル</button>
+      <button class="form-btn ok" id="btn-merge" onclick="confirmImport('merge')">追加（マージ）</button>
+      <button class="form-btn danger" id="btn-replace" onclick="confirmImport('replace')">全置換</button>
+    </div>
+  </div>
+</div>
+
+<!-- === TOAST === -->
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script>
+// ===== STATE =====
+let selectedMemberId = null;       // 編集/削除用（単一選択）
+let memberBulkSelection = new Set(); // 一括選択用（email コピー）
+let emailSelection = new Set();    // email宛先コピーページ用
+let formMode = null;
+let editingId = null;
+
+// ===== PAGE NAVIGATION =====
+function goPage(page) {
+  document.querySelectorAll('[id^="pg-"]').forEach(el => el.style.display = 'none');
+  document.getElementById('pg-' + page).style.display = 'block';
+  window.location.hash = page;
+
+  if (page === 'member') refreshMemberList();
+  if (page === 'email') refreshEmailList();
+  if (page === 'compose') initCompose();
+  if (page === 'score') initScore();
+
+  // メニューカーソル更新（3項目）
+  const items = document.querySelectorAll('#pg-top .menu-item');
+  items.forEach(el => {
+    el.classList.remove('on');
+    el.querySelector('.mc').textContent = '　';
+  });
+  if (page === 'member')  { items[0]?.classList.add('on'); items[0]?.querySelector('.mc') && (items[0].querySelector('.mc').textContent='▶'); }
+  if (page === 'compose') { items[1]?.classList.add('on'); items[1]?.querySelector('.mc') && (items[1].querySelector('.mc').textContent='▶'); }
+  if (page === 'score')   { items[2]?.classList.add('on'); items[2]?.querySelector('.mc') && (items[2].querySelector('.mc').textContent='▶'); }
+}
+
+function goHome() {
+  window.location.href = '/';
+}
+
+// ===== TOAST =====
+function toast(msg, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('err', !!isError);
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ===== MEMBER LIST (メンバー確認) =====
+let allMembers = []; // 検索用に全メンバーを保存
+
+async function refreshMemberList() {
+  allMembers = await db.members.getAll();
+  const count = document.getElementById('member-count');
+  count.textContent = `現在メンバー：${allMembers.length}名`;
+
+  // 検索ボックスをリセット
+  const searchInput = document.getElementById('member-search-input');
+  if (searchInput) searchInput.value = '';
+
+  renderMemberList(allMembers);
+  updateBulkCopyUI();
+}
+
+function renderMemberList(members) {
+  const list = document.getElementById('member-list');
+  if (members.length === 0) {
+    list.innerHTML = '<div style="color:#556677;text-align:center;padding:20px;font-size:13px">メンバーが登録されていません</div>';
+    return;
+  }
+
+  list.innerHTML = members.map(m => {
+    const isSingle = m.id === selectedMemberId;
+    const isBulk = memberBulkSelection.has(m.id);
+    const cls = isBulk ? 'bulk-selected' : (isSingle ? 'selected' : '');
+    return `
+    <div class="member-card ${cls}" onclick="handleMemberClick(event, '${m.id}')">
+      <div class="m-name">${esc(m.name || '(名前なし)')}</div>
+      <div class="m-email">📧 ${esc(m.email)}</div>
+      <div class="m-meta">${m.gender ? m.gender + '　' : ''}${m.phone ? '📞 ' + esc(m.phone) : ''}</div>
+      <div class="m-check">✓</div>
+    </div>`;
+  }).join('');
+}
+
+function filterMembers() {
+  const query = document.getElementById('member-search-input').value.toLowerCase().trim();
+  if (!query) {
+    renderMemberList(allMembers);
+    return;
+  }
+
+  const filtered = allMembers.filter(m =>
+    (m.name && m.name.toLowerCase().includes(query)) ||
+    (m.email && m.email.toLowerCase().includes(query))
+  );
+  renderMemberList(filtered);
+  updateBulkCopyUI();
+}
+
+// クリック: 常にbulkSelectionをトグル（emailコピー用）
+// selectedMemberIdは最後にタップした1件（Edit/Delete用）
+function handleMemberClick(event, id) {
+  // Edit/Delete用の単一選択を更新
+  selectedMemberId = selectedMemberId === id ? null : id;
+
+  // emailコピー用の一括選択もトグル
+  if (memberBulkSelection.has(id)) memberBulkSelection.delete(id);
+  else memberBulkSelection.add(id);
+
+  refreshMemberList();
+}
+
+function selectMember(id) {
+  selectedMemberId = selectedMemberId === id ? null : id;
+  refreshMemberList();
+}
+
+// 一括選択
+async function selectAllMembers() {
+  const members = await db.members.getAll();
+  members.forEach(m => memberBulkSelection.add(m.id));
+  selectedMemberId = null;
+  refreshMemberList();
+}
+
+function deselectAllMembers() {
+  memberBulkSelection.clear();
+  refreshMemberList();
+}
+
+function updateBulkCopyUI() {
+  const n = memberBulkSelection.size;
+  const info = document.getElementById('member-copy-info');
+  const btn = document.getElementById('btn-copy-emails');
+  const countEl = document.getElementById('member-selected-count');
+  if (info) { info.style.display = n > 0 ? 'block' : 'none'; }
+  if (btn) { btn.style.display = n > 0 ? 'block' : 'none'; }
+  if (countEl) { countEl.textContent = n; }
+}
+
+async function copySelectedEmails(btn) {
+  if (memberBulkSelection.size === 0) { toast('メンバーを選択してください', true); return; }
+  const members = await db.members.getAll();
+  const selected = members.filter(m => memberBulkSelection.has(m.id));
+  const emails = selected.map(m => m.email).join('; ');
+
+  const originalText = btn.textContent;
+  const originalBg = btn.style.background;
+  const originalColor = btn.style.color;
+
+  try {
+    await navigator.clipboard.writeText(emails);
+    btn.textContent = `✓ ${selected.length}件コピーしました！`;
+    btn.style.background = '#4a8a4a';
+    btn.style.color = '#88ff88';
+    toast(`${selected.length}件のemailをコピーしました`);
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = originalBg;
+      btn.style.color = originalColor;
+    }, 2000);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = emails; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    btn.textContent = `✓ ${selected.length}件コピーしました！`;
+    btn.style.background = '#4a8a4a';
+    btn.style.color = '#88ff88';
+    toast(`${selected.length}件のemailをコピーしました`);
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = originalBg;
+      btn.style.color = originalColor;
+    }, 2000);
+  }
+}
+
+// ===== ADD/EDIT FORM =====
+function openForm(mode, id) {
+  formMode = mode;
+  editingId = id || null;
+  
+  document.getElementById('form-title').textContent = mode === 'add' ? 'メンバー追加' : 'メンバー編集';
+  
+  // フィールドリセット
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-email').value = '';
+  document.getElementById('f-gender').value = '';
+  document.getElementById('f-phone').value = '';
+  
+  // 編集時はデータを埋める
+  if (mode === 'edit' && id) {
+    db.members.get(id).then(m => {
+      if (m) {
+        document.getElementById('f-name').value = m.name || '';
+        document.getElementById('f-email').value = m.email || '';
+        document.getElementById('f-gender').value = m.gender || '';
+        document.getElementById('f-phone').value = m.phone || '';
+      }
+    });
+  }
+  
+  document.querySelectorAll('.form-input').forEach(el => el.classList.remove('error'));
+  document.getElementById('form-overlay').classList.add('show');
+}
+
+function closeForm() {
+  document.getElementById('form-overlay').classList.remove('show');
+  formMode = null;
+  editingId = null;
+}
+
+async function submitForm() {
+  const name = document.getElementById('f-name').value;
+  const email = document.getElementById('f-email').value;
+  const gender = document.getElementById('f-gender').value;
+  const phone = document.getElementById('f-phone').value;
+  
+  // バリデーション
+  const emailField = document.getElementById('f-email');
+  emailField.classList.remove('error');
+  if (!email.trim()) {
+    emailField.classList.add('error');
+    toast('emailは必須です', true);
+    emailField.focus();
+    return;
+  }
+  
+  try {
+    if (formMode === 'add') {
+      await db.members.add({ name, email, gender, phone });
+      toast('メンバーを追加しました');
+    } else if (formMode === 'edit' && editingId) {
+      await db.members.update(editingId, { name, email, gender, phone });
+      toast('メンバーを更新しました');
+    }
+    closeForm();
+    refreshMemberList();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function editSelected() {
+  if (!selectedMemberId) {
+    toast('メンバーを選択してください', true);
+    return;
+  }
+  openForm('edit', selectedMemberId);
+}
+
+// ===== DELETE =====
+function deleteSelected() {
+  // 一括選択中はその対象を削除、なければ単一選択を削除
+  const bulkCount = memberBulkSelection.size;
+  if (bulkCount > 0) {
+    document.getElementById('delete-msg').textContent =
+      `選択中の ${bulkCount}名 を削除しますか？`;
+    document.getElementById('delete-overlay').classList.add('show');
+  } else if (selectedMemberId) {
+    db.members.get(selectedMemberId).then(m => {
+      if (m) {
+        document.getElementById('delete-msg').textContent =
+          `「${m.name || m.email}」を削除しますか？`;
+        document.getElementById('delete-overlay').classList.add('show');
+      }
+    });
+  } else {
+    toast('メンバーを選択してください', true);
+  }
+}
+
+function closeDelete() {
+  document.getElementById('delete-overlay').classList.remove('show');
+}
+
+async function confirmDelete() {
+  try {
+    if (memberBulkSelection.size > 0) {
+      // 一括削除
+      const ids = [...memberBulkSelection];
+      for (const id of ids) await db.members.delete(id);
+      toast(`${ids.length}名を削除しました`);
+      memberBulkSelection.clear();
+    } else {
+      // 単一削除
+      await db.members.delete(selectedMemberId);
+      selectedMemberId = null;
+      toast('削除しました');
+    }
+    closeDelete();
+    refreshMemberList();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// ===== EMAIL COPY PAGE =====
+async function refreshEmailList() {
+  const members = await db.members.getAll();
+  
+  // 初回は全選択
+  if (emailSelection.size === 0 && members.length > 0) {
+    members.forEach(m => emailSelection.add(m.id));
+  }
+  
+  updateEmailCount();
+  
+  const list = document.getElementById('email-list');
+  if (members.length === 0) {
+    list.innerHTML = '<div style="color:#556677;text-align:center;padding:20px;font-size:13px">メンバーが登録されていません</div>';
+    updateEmailPreview([]);
+    return;
+  }
+  
+  list.innerHTML = members.map(m => `
+    <div class="member-card ${emailSelection.has(m.id) ? 'selected' : ''}"
+         onclick="toggleEmail('${m.id}')">
+      <div class="m-name">${esc(m.name || '(名前なし)')}</div>
+      <div class="m-email">📧 ${esc(m.email)}</div>
+      <div class="m-check">✓</div>
+    </div>
+  `).join('');
+  
+  updateEmailPreview(members);
+}
+
+function toggleEmail(id) {
+  if (emailSelection.has(id)) emailSelection.delete(id);
+  else emailSelection.add(id);
+  refreshEmailList();
+}
+
+async function selectAllEmails() {
+  const members = await db.members.getAll();
+  members.forEach(m => emailSelection.add(m.id));
+  refreshEmailList();
+}
+
+function deselectAllEmails() {
+  emailSelection.clear();
+  refreshEmailList();
+}
+
+function updateEmailCount() {
+  document.getElementById('email-count').textContent = `対象：${emailSelection.size}名`;
+}
+
+function updateEmailPreview(members) {
+  const preview = document.getElementById('email-preview');
+  const selected = members.filter(m => emailSelection.has(m.id));
+  if (selected.length === 0) {
+    preview.textContent = 'メンバーを選択してください';
+    return;
+  }
+  preview.textContent = selected.map(m => m.email).join('; ');
+}
+
+async function copyEmails(btn) {
+  const members = await db.members.getAll();
+  const selected = members.filter(m => emailSelection.has(m.id));
+
+  if (selected.length === 0) {
+    toast('コピー対象がありません', true);
+    return;
+  }
+
+  const emails = selected.map(m => m.email).join('; ');
+
+  const originalText = btn.textContent;
+  const originalBg = btn.style.background;
+  const originalColor = btn.style.color;
+  const originalBorder = btn.style.borderColor;
+
+  try {
+    await navigator.clipboard.writeText(emails);
+    btn.textContent = `✓ ${selected.length}件コピーしました！`;
+    btn.style.background = '#4a8a4a';
+    btn.style.color = '#88ff88';
+    btn.style.borderColor = '#4a8a4a';
+    toast(`${selected.length}件のemailをコピーしました`);
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = originalBg;
+      btn.style.color = originalColor;
+      btn.style.borderColor = originalBorder;
+    }, 2000);
+  } catch (e) {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = emails;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = `✓ ${selected.length}件コピーしました！`;
+    btn.style.background = '#4a8a4a';
+    btn.style.color = '#88ff88';
+    btn.style.borderColor = '#4a8a4a';
+    toast(`${selected.length}件のemailをコピーしました`);
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = originalBg;
+      btn.style.color = originalColor;
+      btn.style.borderColor = originalBorder;
+    }, 2000);
+  }
+}
+
+// ===== UTILITY =====
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// ===== SCORE CALCULATION =====
+let currentRound = null;
+let selectedParticipants = [];
+let scoreData = [];
+let currentPar = 72;
+
+async function initScore() {
+  // Reset state
+  currentRound = null;
+  selectedParticipants = [];
+  scoreData = [];
+  currentPar = 72;
+
+  // Par 入力セクションを表示
+  document.getElementById('sc-par-input').style.display = 'block';
+  document.getElementById('sc-round-section').style.display = 'none';
+  document.getElementById('sc-participants').style.display = 'none';
+  document.getElementById('sc-entry').style.display = 'none';
+  document.getElementById('sc-results').style.display = 'none';
+
+  // email本文作成で保存されたデータがあれば反映（上書き編集可能）
+  if (sharedRoundData) {
+    document.getElementById('sc-date').value = sharedRoundData.date || '';
+    document.getElementById('sc-course').value = sharedRoundData.course || '';
+    document.getElementById('sc-address').value = sharedRoundData.address || '';
+    // 保存元表示
+    document.getElementById('sc-shared-msg').style.display = 'block';
+  } else {
+    // 今日の日付をデフォルト設定
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('sc-date').value = `${yyyy}-${mm}-${dd}`;
+    document.getElementById('sc-shared-msg').style.display = 'none';
+  }
+
+  // 新規ラウンドフォームを即座に表示
+  document.getElementById('sc-new-round').style.display = 'block';
+
+  // 過去ラウンドを非同期で読み込み
+  try {
+    const rounds = await db.rounds.getRecent(10);
+    const roundSelect = document.getElementById('sc-round');
+    roundSelect.innerHTML = '<option value="">＋ 新規ラウンド作成</option>' +
+      rounds.map(r => `<option value="${r.id}">${r.date} - ${r.course}</option>`).join('');
+  } catch(e) {
+    console.warn('rounds load:', e.message);
+  }
+}
+
+// ラウンド削除
+async function deleteRound() {
+  if (!currentRound) return;
+
+  const label = `${currentRound.date} — ${currentRound.course}`;
+  if (!confirm(`「${label}」を削除しますか？\nこの操作は元に戻せません。`)) return;
+
+  try {
+    await db.rounds.delete(currentRound.id);
+    toast('ラウンドを削除しました');
+    currentRound = null;
+
+    // 削除ボタンを隠す
+    document.getElementById('btn-delete-round').style.display = 'none';
+
+    // 参加者・スコア・結果を隠す
+    document.getElementById('sc-participants').style.display = 'none';
+    document.getElementById('sc-entry').style.display = 'none';
+    document.getElementById('sc-results').style.display = 'none';
+    document.getElementById('sc-new-round').style.display = 'block';
+
+    // ドロップダウンを再読み込み
+    const rounds = await db.rounds.getRecent(10);
+    const roundSelect = document.getElementById('sc-round');
+    roundSelect.innerHTML = '<option value="">＋ 新規ラウンド作成</option>' +
+      rounds.map(r => `<option value="${r.id}">${r.date} - ${r.course}</option>`).join('');
+    roundSelect.value = '';
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// Par 確定
+function confirmPar() {
+  const par = parseInt(document.getElementById('sc-par').value);
+  if (!par || par < 70 || par > 75) {
+    toast('Parを70-75で入力してください', true);
+    return;
+  }
+  currentPar = par;
+  document.getElementById('sc-par-input').style.display = 'none';
+  document.getElementById('sc-round-section').style.display = 'block';
+  toast(`Par ${par} で設定しました`);
+}
+
+// ラウンド選択
+document.getElementById('sc-round')?.addEventListener('change', async function() {
+  const id = this.value;
+  const deleteBtn = document.getElementById('btn-delete-round');
+  if (id === '') {
+    document.getElementById('sc-new-round').style.display = 'block';
+    document.getElementById('sc-participants').style.display = 'none';
+    document.getElementById('sc-entry').style.display = 'none';
+    document.getElementById('sc-results').style.display = 'none';
+    if (deleteBtn) deleteBtn.style.display = 'none';
+  } else {
+    currentRound = await db.rounds.get(id);
+    document.getElementById('sc-new-round').style.display = 'none';
+    if (deleteBtn) deleteBtn.style.display = 'block';
+    await loadParticipants();
+  }
+});
+
+// ラウンド作成
+async function createRound() {
+  const date = document.getElementById('sc-date').value;
+  const course = document.getElementById('sc-course').value.trim();
+  const address = document.getElementById('sc-address').value.trim();
+
+  if (!date || !course) {
+    toast('日にちとコース名を入力してください', true);
+    return;
+  }
+
+  try {
+    currentRound = await db.rounds.add({ date, course, address });
+    toast('ラウンドを作成しました');
+    document.getElementById('sc-new-round').style.display = 'none';
+    await loadParticipants();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// 参加者一覧表示
+let allParticipantMembers = []; // 検索用に全メンバーを保存
+let selectedParticipantIds = new Set(); // 選択されたメンバーの ID を保存
+
+async function loadParticipants() {
+  allParticipantMembers = await db.members.getAll();
+
+  // 検索ボックスをリセット
+  const searchInput = document.getElementById('sc-participant-search');
+  if (searchInput) searchInput.value = '';
+
+  // 選択状態をリセット
+  selectedParticipantIds.clear();
+
+  renderParticipantList(allParticipantMembers);
+  document.getElementById('sc-participants').style.display = 'block';
+}
+
+function renderParticipantList(members) {
+  const list = document.getElementById('sc-member-list');
+  list.innerHTML = members.map(m => {
+    const isChecked = selectedParticipantIds.has(m.id);
+    return `
+    <div class="score-checkbox">
+      <label>
+        <input type="checkbox" value="${m.id}" data-name="${esc(m.name||'(名前なし)')}" data-hc="${m.hc||0}"
+               ${isChecked ? 'checked' : ''} onchange="toggleParticipant('${m.id}')">
+        <span>${esc(m.name || '(名前なし)')} (HC: ${m.hc || 0})</span>
+      </label>
+    </div>`;
+  }).join('');
+}
+
+function toggleParticipant(id) {
+  if (selectedParticipantIds.has(id)) {
+    selectedParticipantIds.delete(id);
+  } else {
+    if (selectedParticipantIds.size >= 12) {
+      toast('参加者は最大12人までです', true);
+      // チェックを戻す
+      document.querySelector(`input[value="${id}"]`).checked = false;
+      return;
+    }
+    selectedParticipantIds.add(id);
+  }
+  // 選択数をリアルタイム表示
+  updateParticipantCount();
+}
+
+function updateParticipantCount() {
+  const count = selectedParticipantIds.size;
+  const countEl = document.getElementById('sc-participant-count');
+  if (countEl) countEl.textContent = count;
+}
+
+function filterParticipants() {
+  const query = document.getElementById('sc-participant-search').value.toLowerCase().trim();
+  if (!query) {
+    renderParticipantList(allParticipantMembers);
+    return;
+  }
+
+  const filtered = allParticipantMembers.filter(m =>
+    (m.name && m.name.toLowerCase().includes(query)) ||
+    (m.email && m.email.toLowerCase().includes(query))
+  );
+  renderParticipantList(filtered);
+}
+
+// スコア入力画面へ
+function startScoreEntry() {
+  if (selectedParticipantIds.size === 0) {
+    toast('参加者を選択してください', true);
+    return;
+  }
+
+  selectedParticipants = Array.from(selectedParticipantIds).map(id => {
+    const m = allParticipantMembers.find(x => x.id === id);
+    return {
+      id: m.id,
+      name: m.name || '(名前なし)',
+      hc: m.hc || 0
+    };
+  });
+
+  const tbody = document.getElementById('sc-tbody');
+  tbody.innerHTML = selectedParticipants.map(p => `
+    <tr>
+      <td class="name">${p.name}</td>
+      <td><input type="text" class="score-input hc-input" data-id="${p.id}" value="${p.hc}" inputmode="numeric" style="width:100%;text-align:center" placeholder="-20～+20"></td>
+      <td><input type="number" class="score-input score-input-val" data-id="${p.id}" placeholder="スコア" min="50" max="150"></td>
+      <td class="penalty-display">—</td>
+    </tr>
+  `).join('');
+
+  // リアルタイムで罰金を計算・表示
+  document.querySelectorAll('.hc-input, .score-input-val').forEach(input => {
+    input.addEventListener('input', updatePenaltyDisplay);
+  });
+  // HC は blur 時に正規化
+  document.querySelectorAll('.hc-input').forEach(input => {
+    input.addEventListener('blur', updatePenaltyDisplay);
+  });
+
+  document.getElementById('sc-participants').style.display = 'none';
+  document.getElementById('sc-entry').style.display = 'block';
+}
+
+// HC入力の解析（負数対応）
+function parseHC(value) {
+  const trimmed = String(value).trim();
+  if (!trimmed) return 0;
+  const parsed = parseInt(trimmed);
+  // 範囲外の値は制限
+  if (parsed < -20) return -20;
+  if (parsed > 20) return 20;
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+// リアルタイム罰金表示
+function updatePenaltyDisplay(e) {
+  const row = e.target.closest('tr');
+  const hcInput = row.querySelector('.hc-input');
+  const raw = hcInput.value.trim();
+
+  // blur時のみ値を正規化（入力途中の "-" や空欄を壊さない）
+  if (e.type === 'blur') {
+    hcInput.value = parseHC(raw);
+  }
+
+  // "-" だけ・空欄のときは罰金計算をスキップ
+  if (raw === '-' || raw === '') {
+    checkAllScoresEntered();
+    return;
+  }
+
+  const hc = parseHC(raw);
+  const score = parseInt(row.querySelector('.score-input-val').value);
+  const penaltyTd = row.querySelector('.penalty-display');
+
+  if (!score) {
+    penaltyTd.textContent = '—';
+    penaltyTd.className = 'penalty-display';
+  } else {
+    const base = 90 + hc;
+    const parAdjust = 72 - currentPar;
+    const penalty = Math.max(0, score - base + parAdjust);
+
+    if (penalty > 0) {
+      penaltyTd.textContent = '$' + penalty;
+      penaltyTd.className = 'penalty-display penalty bold';
+    } else {
+      penaltyTd.textContent = '—';
+      penaltyTd.className = 'penalty-display zero';
+    }
+  }
+
+  // 全メンバーのスコアが入力されたかチェック
+  checkAllScoresEntered();
+}
+
+// 全メンバーのスコア入力完了チェック
+function checkAllScoresEntered() {
+  const rows = document.querySelectorAll('#sc-tbody tr');
+  let allEntered = true;
+
+  rows.forEach(row => {
+    const hc = row.querySelector('.hc-input').value.trim();
+    const score = row.querySelector('.score-input-val').value.trim();
+    if (!hc || !score) {
+      allEntered = false;
+    }
+  });
+
+  // 全て入力されたら結果を自動表示
+  if (allEntered && rows.length > 0) {
+    setTimeout(() => calculatePenalties(), 300);
+  }
+}
+
+// 罰金計算
+function calculatePenalties() {
+  const rows = document.querySelectorAll('#sc-tbody tr');
+  scoreData = [];
+  let hasError = false;
+
+  rows.forEach(row => {
+    const hcInput = row.querySelector('.hc-input');
+    const scoreInput = row.querySelector('.score-input-val');
+    const id = scoreInput.dataset.id;
+    const hc = parseHC(hcInput.value);
+    const score = parseInt(scoreInput.value);
+
+    if (!score || score < 50 || score > 150) {
+      hasError = true;
+      return;
+    }
+
+    const p = selectedParticipants.find(x => x.id === id);
+    const base = 90 + hc;
+    const parAdjust = 72 - currentPar;
+    const penalty = Math.max(0, score - base + parAdjust);
+
+    scoreData.push({
+      id: p.id,
+      name: p.name,
+      hc: hc,
+      score: score,
+      base: base,
+      penalty: penalty,
+      hc_after: penalty > 0 ? hc + 1 : hc
+    });
+  });
+
+  if (hasError) {
+    toast('すべての参加者のスコアを入力してください', true);
+    return;
+  }
+
+  // 結果表示
+  const resultTbody = document.getElementById('sc-result-tbody');
+  resultTbody.innerHTML = scoreData.map(d => `
+    <tr>
+      <td class="name">${d.name}</td>
+      <td>${d.hc}</td>
+      <td>${d.score}</td>
+      <td>${d.base}</td>
+      <td class="${d.penalty > 0 ? 'penalty bold' : 'zero'}">${d.penalty > 0 ? '$' + d.penalty : '—'}</td>
+    </tr>
+  `).join('');
+
+  const total = scoreData.reduce((sum, d) => sum + d.penalty, 0);
+  document.getElementById('sc-total').textContent = `合計罰金: $${total}`;
+
+  document.getElementById('sc-entry').style.display = 'none';
+  document.getElementById('sc-results').style.display = 'block';
+}
+
+// 結果を保存（HCを更新）
+async function saveResults() {
+  if (!currentRound || scoreData.length === 0) return;
+
+  try {
+    for (const d of scoreData) {
+      // スコアを保存
+      await db.scores.add({
+        roundId: currentRound.id,
+        memberId: d.id,
+        memberName: d.name,
+        score: d.score,
+        hc_at_time: d.hc,
+        penalty_strokes: d.over,
+        hc_after: d.hc_after
+      });
+
+      // HCを更新（罰金がある場合のみ）
+      if (d.over > 0) {
+        await db.members.updateHC(d.id, d.hc_after);
+      }
+    }
+
+    toast('スコアとHCを保存しました');
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// スコア・罰金結果をコピー
+function copyPenaltyResults(btn) {
+  if (!currentRound || scoreData.length === 0) return;
+
+  const total = scoreData.reduce((sum, d) => sum + d.penalty, 0);
+  const dateStr = currentRound.date;
+
+  let body = `【${dateStr} スコア・罰金計算結果】\n`;
+  body += `コース: ${currentRound.course}\n`;
+  body += `Par: ${currentPar}\n\n`;
+  body += `━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  scoreData.forEach(d => {
+    body += `${d.name}\n`;
+    body += `  HC: ${d.hc}  /  スコア: ${d.score}\n`;
+    body += `  基準: ${d.base}  /  `;
+    if (d.penalty > 0) {
+      body += `罰金: $${d.penalty} ✓\n`;
+      body += `  次回HC: ${d.hc_after}\n`;
+    } else {
+      body += `罰金: —\n`;
+    }
+    body += `\n`;
+  });
+
+  body += `━━━━━━━━━━━━━━━━━━━\n`;
+  body += `合計罰金: $${total}\n`;
+
+  const originalText = btn.textContent;
+  const originalBg = btn.style.background;
+  const originalColor = btn.style.color;
+
+  navigator.clipboard.writeText(body).then(() => {
+    btn.textContent = '✓ コピーしました！';
+    btn.style.background = '#4a8a4a';
+    btn.style.color = '#88ff88';
+    toast('結果をメール本文としてコピーしました');
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = originalBg;
+      btn.style.color = originalColor;
+    }, 2000);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = body;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = '✓ コピーしました！';
+    btn.style.background = '#4a8a4a';
+    btn.style.color = '#88ff88';
+    toast('結果をメール本文としてコピーしました');
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = originalBg;
+      btn.style.color = originalColor;
+    }, 2000);
+  });
+}
+
+// メール本文をコピー（旧版 - 互換性のため保持）
+function copyPenaltyEmail() {
+  if (!currentRound || scoreData.length === 0) return;
+  copyPenaltyResults(document.querySelector('button[onclick="copyPenaltyResults(this)"]') || {textContent: '📧 結果をメールコピー', style: {}});
+}
+
+// ===== SHARED STATE: compose → score =====
+let sharedRoundData = null;  // email本文作成で保存したラウンド情報
+
+function saveComposeData(btn) {
+  const date   = document.getElementById('c-date').value;
+  const course = document.getElementById('c-course').value.trim();
+  const address= document.getElementById('c-address').value.trim();
+  const tees   = getTeeRows();
+
+  if (!date || !course) {
+    toast('日にちとコース名は必須です', true);
+    return;
+  }
+
+  sharedRoundData = { date, course, address, tees };
+
+  // ビジュアルフィードバック
+  const originalText = btn.textContent;
+  const originalBg = btn.style.background;
+  const originalColor = btn.style.color;
+
+  btn.textContent = '✓ 保存しました！';
+  btn.style.background = '#2a5a2a';
+  btn.style.color = '#88ff88';
+
+  document.getElementById('compose-saved-msg').style.display = 'block';
+  toast('スコア計算用に保存しました');
+
+  setTimeout(() => {
+    btn.textContent = originalText;
+    btn.style.background = originalBg;
+    btn.style.color = originalColor;
+  }, 2000);
+}
+
+// ===== EMAIL COMPOSE =====
+let currentStyle = 'cute';
+
+function initCompose() {
+  // 今日の日付をデフォルト設定
+  if (!document.getElementById('c-date').value) {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('c-date').value = `${yyyy}-${mm}-${dd}`;
+  }
+  generateBody();
+}
+
+function setStyle(style) {
+  currentStyle = style;
+  document.querySelectorAll('.style-btn').forEach(btn => {
+    btn.classList.toggle('on', btn.dataset.style === style);
+  });
+  generateBody();
+}
+
+// Tee Time 行の追加
+function addTeeRow() {
+  const container = document.getElementById('tee-rows');
+  const rows = container.querySelectorAll('.tee-row');
+  if (rows.length >= 3) {
+    toast('Tee Timeは最大3つです', true);
+    return;
+  }
+  const div = document.createElement('div');
+  div.className = 'tee-row';
+  div.innerHTML = `<select class="compose-input tee-ampm" style="flex:0 0 60px">
+      <option value="">--</option>
+      <option value="AM">午前</option>
+      <option value="PM">午後</option>
+    </select>
+    <input class="compose-input tee-hour" type="number" min="1" max="12" placeholder="時" style="flex:0 0 70px">
+    <input class="compose-input tee-min" type="number" min="0" max="59" step="5" placeholder="分" style="flex:0 0 70px">
+    <button class="tee-add-btn" onclick="removeTeeRow(this)" title="削除">－</button>`;
+  container.appendChild(div);
+  if (container.querySelectorAll('.tee-row').length >= 3) {
+    document.getElementById('tee-add-btn').style.display = 'none';
+  }
+}
+
+function removeTeeRow(btn) {
+  btn.parentElement.remove();
+  document.getElementById('tee-add-btn').style.display = 'inline-block';
+}
+
+function getTeeRows() {
+  const rows = document.querySelectorAll('#tee-rows .tee-row');
+  const result = [];
+  rows.forEach(row => {
+    const ampm = row.querySelector('.tee-ampm').value.trim();
+    const hour = row.querySelector('.tee-hour').value.trim();
+    const min = row.querySelector('.tee-min').value.trim();
+    if (ampm && hour && min) {
+      let h = parseInt(hour);
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      const hStr = String(h).padStart(2, '0');
+      const mStr = String(min).padStart(2, '0');
+      result.push(`${hStr}:${mStr}`);
+    }
+  });
+  return result;
+}
+
+// 日付フォーマット
+function formatDate(dateStr, style) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  const days = ['日', '月', '火', '水', '木', '金', '土'];
+  const m = d.getMonth() + 1, dd = d.getDate(), day = days[d.getDay()];
+  if (style === 'elegant' || style === 'stylish') {
+    return `${d.getFullYear()}年${m}月${dd}日（${day}）`;
+  }
+  return `${m}月${dd}日（${day}）`;
+}
+
+// Tee Time 表示フォーマット
+function formatTees(tees, style) {
+  if (!tees.length) return '';
+  if (style === 'cute') return tees.map(t => `🕐 ${t}`).join('  ');
+  if (style === 'elegant') return tees.join('、');
+  return tees.join(' / ');
+}
+
+// ===== 週ごとの話題（月別 × レイアウト別） =====
+// 月（0-11）→ [A週用, B週用] の2パターン。月内週番号で交互に切替。
+const WEEKLY_TOPICS = {
+  cute: [
+    ['🎍 新年最初のラウンド、運気アップを狙ってナイスショット決めちゃおう✨', '❄️ 寒い朝はカイロ必須〜！あったか装備でホットなスコア出していこ♪'],
+    ['💝 バレンタイン週末は、コースで甘いスコアをGetしちゃお〜🍫', '🌬 まだ風が冷たいけど、青空ゴルフは気持ちいいよね☁→☀'],
+    ['🌸 春の風が気持ちいい季節〜！桜を眺めながらティーオフしよっ', '🌷 卒業・新生活シーズン✨ コースで気分もリフレッシュ〜♪'],
+    ['🌿 新緑がキレイな季節✨ 芝のグリーンとお揃いコーデで気分アゲアゲ〜', '🌸 春爛漫🌸 グリーンの上もイキイキ！絶好のラウンド日和だよ〜'],
+    ['🍃 GW明けのリフレッシュにゴルフ最高☀ 風も気持ちいい〜♪', '🌱 新緑が眩しい季節！飛距離より気持ちよさ重視でいこ〜'],
+    ['☂ 梅雨の合間のお天気ラウンドは超ラッキー☀ 今日を全力で楽しもう〜', '☔ 雨予報でもくじけない！かわいいレインウェアで気分アゲていこ♪'],
+    ['🌻 夏本番!熱中症対策ばっちりで思いっきりプレーしちゃお〜🥤', '🍧 暑さに負けないでナイスショット連発！冷たいドリンク忘れずに〜🍹'],
+    ['🌅 真夏のラウンドは早朝スタートがマスト〜 涼しいうちにスコアまとめよ✨', '🌞 夏ゴルフは水分補給と日焼け止め必須🧴 元気にラウンドしようね♪'],
+    ['🍂 秋風が気持ちいい〜！ベストシーズン到来⛳ コースが呼んでるよ〜', '🍁 スポーツの秋✨ ゴルフ日和の連休はラウンド一択でしょ〜♪'],
+    ['🍁 紅葉ゴルフは最高に映える！写真も忘れずに残そ📸✨', '🌰 秋の長いラウンドにぴったり〜 ゆったりプレーを楽しもう♪'],
+    ['🍂 朝晩冷え込む季節🍁 防寒対策バッチリで秋ゴルフ満喫しよっ', '☕ 紅葉が見頃な今こそラウンド日和！美しい景色とともに〜♪'],
+    ['🎄 年の瀬ラウンド⛳ 今年最後のスコアもナイスで締めくくろっ✨', '☕ 寒い朝もホットコーヒー片手にティーアップ〜 あったかゴルフ満喫♪'],
+  ],
+  stylish: [
+    ['NEW YEAR, NEW SWING. 新しい一年、新たなスコアラインを描きにいきましょう。', 'COLD MORNING, CRISP AIR. 冬の張りつめた空気は集中力を研ぎ澄ます。'],
+    ['SHARP WIND, SHARP FOCUS. 寒さは技術を磨く最高の伴走者。', 'WINTER LINKS. 冷気の中で振り抜く一打は、確かな手応えを残す。'],
+    ['SPRING DRIVE. 春の風はそっと背中を押してくれる。', 'BLOSSOM TEE-OFF. 桜色のフェアウェイで、新しい季節を打ち出そう。'],
+    ['FRESH GREEN, FRESH GAME. 芽吹きの季節は、気持ちまでリセット。', 'APRIL CONDITIONS. 心地よい気温、ベストコンディションの始まり。'],
+    ['GOLDEN WEEK GOLF. 連休明けの空気は澄み、ラウンドにふさわしい。', 'EARLY SUMMER LINKS. 風薫る五月、コースは最も色濃く美しい。'],
+    ['AGAINST THE RAIN. 梅雨の合間こそ、本物のゴルファーが現れる時。', 'WET FAIRWAYS, COOL HEAD. 雨でも変わらないリズムが上達の鍵。'],
+    ['SUMMER LINKS. 夏のラウンドは、戦略と体力の真価が問われる。', 'EARLY TEE-OFF. 朝の空気を制する者がスコアを制する。'],
+    ['HOT ZONE. 真夏のフェアウェイは、メンタルの戦場。', 'SUNRISE GOLF. 暑さを避けて、夜明けの一打を。'],
+    ['AUTUMN SEASON. 一年で最もゴルフが似合う季節がやってきた。', 'BEST CONDITIONS. 秋風、乾いた芝、最高のラウンド日和。'],
+    ['COLORS OF FALL. 紅葉のコースは、心まで整えてくれる。', 'AUTUMN PRECISION. 涼やかな空気が、正確なショットを呼ぶ。'],
+    ['LATE AUTUMN. 落ち葉のラフ、晩秋のリンクス。', 'WINTER PRELUDE. 冬の足音とともに、最後の秋ラウンドを丁寧に。'],
+    ['YEAR-END ROUND. 今年最後のスコアを、丁寧に締めくくる。', 'WINTER CLASSIC. 冷気とともに磨き上げる、年末の一打。'],
+  ],
+  simple: [
+    ['新年最初のラウンドです。本年もよろしくお願いします。', '寒さが厳しい時期です。防寒対策をしてご参加ください。'],
+    ['冬本番、コースのコンディションが変化しやすい時期です。', '朝の気温が低いため、暖かい服装でお越しください。'],
+    ['春らしい陽気になってきました。久しぶりの方もぜひご参加ください。', '年度末でお忙しい方も多いと思いますが、リフレッシュにどうぞ。'],
+    ['桜の季節になりました。心地よい気候のラウンドです。', '新年度のスタート、コースで気分を切り替えましょう。'],
+    ['GW明け、初夏の気持ちよい気候です。', '新緑のきれいな時期、コンディション良好なラウンドです。'],
+    ['梅雨に入りました。当日の天候にご注意ください。', '雨天時は中止の可能性があります。直前のご連絡にご注意ください。'],
+    ['暑い時期です。水分補給と熱中症対策をお願いします。', '夏場は早めのスタートとなります。スタート時間にご注意ください。'],
+    ['猛暑が続きます。各自体調管理をお願いします。', '真夏のため、十分な水分と日焼け対策をお持ちください。'],
+    ['暑さも和らぎ、ゴルフに最適なシーズンです。', '秋の連休、リフレッシュにぜひご参加ください。'],
+    ['朝晩冷え込みます。長袖の準備をおすすめします。', '紅葉が見頃の時期、コースの景色もお楽しみください。'],
+    ['気温が下がってきました。防寒着をご準備ください。', '日が短くなっています。スタート時間にご注意ください。'],
+    ['今年最後のラウンドです。年末のお忙しい中ありがとうございます。', '寒さが厳しい時期です。暖かい装備でお越しください。'],
+  ],
+  elegant: [
+    ['新春の候、皆様におかれましてはご健勝のこととお慶び申し上げます。本年も変わらぬご厚誼を賜りますようお願い申し上げます。', '厳寒の折、皆様におかれましてはご清祥のことと存じます。新年最初のラウンドにてお目にかかれますことを楽しみにしております。'],
+    ['余寒なお去りやらぬ折、皆様におかれましてはご健勝のことと拝察申し上げます。', '春寒の候、いかがお過ごしでしょうか。冷気の中にも春の兆しを感じる季節となりました。'],
+    ['早春の候、皆様におかれましてはますますご清栄のこととお喜び申し上げます。', '桜花の便りが聞かれる季節となりました。心地よい風の中、ご一緒できますことを楽しみにしております。'],
+    ['陽春の候、桜花爛漫の季節を迎え、皆様におかれましてはご健勝のこととお慶び申し上げます。', '新緑が目に眩しい好季となりました。コースの上にも穏やかな春風が吹いております。'],
+    ['薫風の候、若葉の緑が美しい時期となりました。皆様にはご清祥のこととお慶び申し上げます。', '立夏を過ぎ、爽やかな初夏の風が心地よい季節となりました。'],
+    ['梅雨の候、皆様におかれましてはご清祥のこととお慶び申し上げます。お足元の悪い日もございますが、何卒よろしくお願い申し上げます。', '紫陽花の彩りが美しい時節となりました。雨の合間の好天に恵まれますようお祈り申し上げます。'],
+    ['盛夏の候、皆様におかれましてはご健勝のこととお慶び申し上げます。何卒ご自愛のうえ、ご参加賜りますようお願い申し上げます。', '暑中の折、いかがお過ごしでしょうか。熱中症などくれぐれもご留意のほどお願い申し上げます。'],
+    ['残暑の候、厳しい暑さが続いておりますが、皆様におかれましてはお健やかにお過ごしのこととお喜び申し上げます。', '立秋とは名ばかりの暑さが続いております。十分な水分補給のうえ、ご参加賜りますようお願い申し上げます。'],
+    ['初秋の候、朝夕の風に秋の気配を感じる頃となりました。皆様にはますますご健勝のこととお慶び申し上げます。', '秋涼の候、ゴルフに最も相応しい季節を迎えました。皆様のご参加を心よりお待ち申し上げております。'],
+    ['紅葉の候、深まりゆく秋に心も澄み渡る季節となりました。', '秋冷の候、皆様におかれましてはご清祥のこととお慶び申し上げます。紅葉の美しい景観の中、お楽しみいただければ幸いです。'],
+    ['晩秋の候、朝晩の冷え込みが厳しくなって参りました。皆様にはご自愛のほどお願い申し上げます。', '向寒の折、皆様におかれましてはご清栄のこととお慶び申し上げます。'],
+    ['師走の候、慌ただしい年の瀬を迎えております。本年最後のラウンド、心を込めてご案内申し上げます。', '歳末の候、皆様におかれましては何かとお忙しい時節かと存じます。お時間の許す限りご参加賜りますようお願い申し上げます。'],
+  ],
+};
+
+function getWeeklyTopic(dateStr, style) {
+  const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  if (isNaN(d.getTime())) return '';
+  const month = d.getMonth();
+  const weekInMonth = Math.floor((d.getDate() - 1) / 7);
+  const variant = weekInMonth % 2;
+  const pool = WEEKLY_TOPICS[style];
+  if (!pool || !pool[month]) return '';
+  return pool[month][variant] || pool[month][0] || '';
+}
+
+// 本文生成
+function generateBody() {
+  const dateVal   = document.getElementById('c-date').value;
+  const course    = document.getElementById('c-course').value.trim();
+  const address   = document.getElementById('c-address').value.trim();
+  const feeCart   = document.getElementById('c-fee-cart').value.trim();
+  const feeWalk   = document.getElementById('c-fee-walk').value.trim();
+  const tees      = getTeeRows();
+  const style     = currentStyle;
+
+  const preview = document.getElementById('body-preview');
+
+  if (!dateVal && !course && !tees.length) {
+    preview.textContent = '日にち・コース名・Tee Timeを入力すると本文が生成されます';
+    return;
+  }
+
+  const dateStr = formatDate(dateVal, style);
+  const teeStr  = formatTees(tees, style);
+  const topic   = getWeeklyTopic(dateVal, style);
+
+  let body = '';
+
+  if (style === 'cute') {
+    // ===== かわいい：絵文字てんこ盛り・ポップ・カジュアル =====
+    body = `🌸✨🏌️‍♀️ 今週の球極 🏌️‍♂️✨🌸\n`
+      + `━━━━━━━━━━━━━━━━━━\n\n`
+      + (topic ? `${topic}\n\n` : '')
+      + `🌟 ーー 開催情報 ーー 🌟\n\n`
+      + `📅 日にち　: ${dateStr}\n`
+      + `⛳ コース　: ${course || '（コース名未入力）'}\n`
+      + (address ? `📍 住　所　: ${address}\n` : '')
+      + `\n🕐 Tee Time 🕐\n${tees.length ? tees.map(t => `  💫 ${t}`).join('\n') : '  （未入力）'}\n`
+      + ((feeCart || feeWalk) ? `\n💰 Fee 💰\n${feeCart ? `  🛒 カート付: ${feeCart}\n` : ''}${feeWalk ? `  🚶 歩 き　: ${feeWalk}\n` : ''}` : '')
+      + `\n━━━━━━━━━━━━━━━━━━\n`
+      + `みなさんのご参加お待ちしてます〜♪🎉\n`
+      + `ナイスショット祈願⛳✨`;
+
+  } else if (style === 'stylish') {
+    // ===== おしゃれ：英文ラベル中心・ミニマル・雑誌風 =====
+    body = `━━━ KYUKYOKU GOLF CLUB ━━━\n`
+      + `   W E E K L Y   B U L L E T I N\n\n`
+      + (topic ? `> ${topic}\n\n` : '')
+      + `─── EVENT ───\n\n`
+      + `DATE     │ ${dateStr}\n`
+      + `COURSE   │ ${course || '—'}\n`
+      + (address ? `ADDRESS  │ ${address}\n` : '')
+      + `TEE TIME │ ${teeStr || '—'}\n`
+      + ((feeCart || feeWalk) ? `\n─── FEE ───\n\n${feeCart ? `CART     │ ${feeCart}\n` : ''}${feeWalk ? `WALK     │ ${feeWalk}\n` : ''}` : '')
+      + `\n──────────────────────────\n`
+      + `RSVP REQUESTED.`;
+
+  } else if (style === 'simple') {
+    // ===== シンプル：装飾なし・最小限・業務連絡風 =====
+    body = `今週の球極のご案内\n\n`
+      + (topic ? `${topic}\n\n` : '')
+      + `日にち  ${dateStr}\n`
+      + `コース  ${course || '未定'}\n`
+      + (address ? `住所    ${address}\n` : '')
+      + `\nTee Time\n${tees.length ? tees.map(t => `  ${t}`).join('\n') : '  未定'}\n`
+      + (feeCart ? `\nFee（カート付） ${feeCart}` : '')
+      + (feeWalk ? `\nFee（歩き）     ${feeWalk}` : '')
+      + `\n\nご参加の方はご返信ください。`;
+
+  } else if (style === 'elegant') {
+    // ===== 上品：拝啓敬具・時候の挨拶・伝統的な和文体（絵文字なし） =====
+    body = `拝啓\n\n`
+      + (topic ? `${topic}\n\n` : '')
+      + `さて、このたび「球極」におきまして、下記の通りラウンドを開催する運びとなりました。ご多用中とは存じますが、何卒ご参加賜りますようお願い申し上げます。\n\n`
+      + `　　　　　　　　記\n\n`
+      + `【開 催 日】　${dateStr}\n`
+      + `【コ ー ス】　${course || '未定'}\n`
+      + (address ? `【住　　所】　${address}\n` : '')
+      + `\n【Tee Time】\n${tees.length ? tees.map(t => `　　${t}`).join('\n') : '　　未定'}\n`
+      + ((feeCart || feeWalk) ? `\n【参 加 費】\n${feeCart ? `　　カート付　　：${feeCart}\n` : ''}${feeWalk ? `　　ウォーキング：${feeWalk}\n` : ''}` : '')
+      + `\nご参加の旨、お早めにご一報賜りますと幸いに存じます。\n\n`
+      + `　　　　　　　　　　　　　　　　　敬具\n\n`
+      + `　　　　　　　　　　　　　　　　球極 運営`;
+  }
+
+  preview.textContent = body;
+}
+
+async function copyBody(btn) {
+  const body = document.getElementById('body-preview').textContent;
+  if (!body || body.startsWith('日にち')) {
+    toast('先に本文を生成してください', true);
+    return;
+  }
+
+  const originalText = btn.textContent;
+  const originalBg = btn.style.background;
+  const originalColor = btn.style.color;
+
+  try {
+    await navigator.clipboard.writeText(body);
+    btn.textContent = '✓ コピーしました！';
+    btn.style.background = '#4a8a4a';
+    btn.style.color = '#88ff88';
+    toast('本文をコピーしました');
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = originalBg;
+      btn.style.color = originalColor;
+    }, 2000);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = body;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = '✓ コピーしました！';
+    btn.style.background = '#4a8a4a';
+    btn.style.color = '#88ff88';
+    toast('本文をコピーしました');
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = originalBg;
+      btn.style.color = originalColor;
+    }, 2000);
+  }
+}
+
+// メンバー検索のイベントリスナー
+document.getElementById('member-search-input')?.addEventListener('input', filterMembers);
+
+// 参加者検索のイベントリスナー
+document.getElementById('sc-participant-search')?.addEventListener('input', filterParticipants);
+
+// 入力変化でリアルタイム更新
+['c-date','c-course','c-address','c-fee-cart','c-fee-walk'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', generateBody);
+});
+document.getElementById('tee-rows').addEventListener('input', generateBody);
+
+// ===== 重複削除 =====
+async function deduplicateMembers() {
+  const all = await db.members.getAll();
+  const seen = new Map(); // email → 最初のid
+  const duplicates = [];
+
+  for (const m of all) {
+    const key = m.email.toLowerCase();
+    if (seen.has(key)) {
+      duplicates.push(m.id); // 2件目以降は削除対象
+    } else {
+      seen.set(key, m.id);
+    }
+  }
+
+  if (duplicates.length === 0) {
+    toast('重複はありません');
+    return;
+  }
+
+  if (!confirm(`重複メンバーが${duplicates.length}件見つかりました。削除しますか？`)) return;
+
+  for (const id of duplicates) {
+    await db.members.delete(id);
+  }
+
+  toast(`重複${duplicates.length}件を削除しました`);
+  refreshMemberList();
+}
+
+// ===== SAMPLE TEMPLATE DOWNLOAD =====
+function downloadSample() {
+  const sampleData = [
+    { 'Name': '山田 太郎', 'Email': 'taro.yamada@example.com', '性別': '男', '電話番号': '090-1234-5678' },
+    { 'Name': '鈴木 花子', 'Email': 'hanako.suzuki@example.com', '性別': '女', '電話番号': '080-9876-5432' },
+    { 'Name': 'Kim John',  'Email': 'john.kim@example.com',     '性別': '',   '電話番号': '' },
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(sampleData);
+  ws['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 8 }, { wch: 16 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'メンバー');
+  XLSX.writeFile(wb, 'kyukyoku_sample.xlsx');
+  toast('サンプルファイルをダウンロードしました');
+}
+
+// ===== EXPORT: Excel =====
+async function exportExcel() {
+  const members = await db.members.getAll();
+  if (members.length === 0) { toast('エクスポートするデータがありません', true); return; }
+
+  const rows = members.map(m => ({
+    'Name': m.name || '',
+    'Email': m.email || '',
+    '性別': m.gender || '',
+    '電話番号': m.phone || ''
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // 列幅設定
+  ws['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 8 }, { wch: 16 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'メンバー');
+
+  const today = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `kyukyoku_members_${today}.xlsx`);
+  toast(`${members.length}件をExcel出力しました`);
+}
+
+// ===== EXPORT: CSV =====
+async function exportCSV() {
+  const members = await db.members.getAll();
+  if (members.length === 0) { toast('エクスポートするデータがありません', true); return; }
+
+  const rows = members.map(m => ({
+    'Name': m.name || '',
+    'Email': m.email || '',
+    '性別': m.gender || '',
+    '電話番号': m.phone || ''
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const csv = XLSX.utils.sheet_to_csv(ws);
+
+  // BOM付きUTF-8でダウンロード（Excel/Sheetsの日本語文字化け防止）
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const today = new Date().toISOString().slice(0, 10);
+  a.download = `kyukyoku_members_${today}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`${members.length}件をCSV出力しました`);
+}
+
+// ===== IMPORT =====
+let pendingImport = [];
+
+function findCol(row, candidates) {
+  const keys = Object.keys(row);
+  for (const cand of candidates) {
+    const found = keys.find(k => k.trim().toLowerCase() === cand.toLowerCase());
+    if (found !== undefined) return String(row[found] || '').trim();
+  }
+  return '';
+}
+
+function importFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+
+      if (rows.length === 0) { toast('データが見つかりません', true); return; }
+      console.log('Excel columns:', Object.keys(rows[0]));
+
+      const parsed = rows.map(r => ({
+        name:   findCol(r, ['Name','name','名前','氏名','お名前','フルネーム']),
+        email:  findCol(r, ['Email','email','EMAIL','メール','メールアドレス','mail','Mail']),
+        gender: findCol(r, ['性別','Gender','gender','sex','Sex']),
+        phone:  findCol(r, ['電話番号','Phone','phone','TEL','tel','Tel','携帯','携帯番号'])
+      }));
+
+      const withEmail = parsed.filter(r => r.email && r.email.includes('@'));
+      const seen = new Set();
+      pendingImport = withEmail.filter(r => {
+        const key = r.email.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      if (pendingImport.length === 0) { toast('有効なemailが見つかりません', true); return; }
+
+      const skippedNoEmail = rows.length - withEmail.length;
+      const skippedDup = withEmail.length - pendingImport.length;
+      let msg = `${pendingImport.length}件を検出`;
+      if (skippedNoEmail > 0) msg += ` / email無し${skippedNoEmail}件除外`;
+      if (skippedDup > 0) msg += ` / ファイル内重複${skippedDup}件除外`;
+      document.getElementById('import-msg').textContent = msg;
+
+      // DB件数を取得して表示
+      document.getElementById('import-db-count').textContent = '…';
+      document.getElementById('import-file-count').textContent = pendingImport.length;
+      try {
+        const dbCount = await db.members.count();
+        document.getElementById('import-db-count').textContent = dbCount;
+      } catch(e) {
+        document.getElementById('import-db-count').textContent = '?';
+      }
+
+      const preview = document.getElementById('import-preview');
+      preview.innerHTML = pendingImport.slice(0, 10).map(m => `
+        <div class="member-card" style="cursor:default">
+          <div class="m-name">${esc(m.name || '(名前なし)')}</div>
+          <div class="m-email">📧 ${esc(m.email)}</div>
+        </div>
+      `).join('') + (pendingImport.length > 10 ? `<div style="color:#556677;text-align:center;padding:8px;font-size:12px">…他 ${pendingImport.length - 10}件</div>` : '');
+
+      // 進捗をリセット
+      document.getElementById('import-progress').style.display = 'none';
+      document.getElementById('import-actions').style.display = 'flex';
+      document.getElementById('btn-merge').disabled = false;
+      document.getElementById('btn-replace').disabled = false;
+
+      document.getElementById('import-overlay').classList.add('show');
+    } catch (err) {
+      console.error(err);
+      toast('ファイルの読み込みに失敗しました', true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function closeImport() {
+  document.getElementById('import-overlay').classList.remove('show');
+  pendingImport = [];
+}
+
+function setImportProgress(current, total, msg) {
+  const pct = total > 0 ? Math.round(current / total * 100) : 0;
+  document.getElementById('import-progress-bar').style.width = pct + '%';
+  document.getElementById('import-progress-msg').textContent = msg || `処理中... ${current} / ${total}件`;
+}
+
+async function confirmImport(mode) {
+  if (pendingImport.length === 0) return;
+
+  // ボタンを無効化・進捗表示
+  document.getElementById('btn-merge').disabled = true;
+  document.getElementById('btn-replace').disabled = true;
+  document.getElementById('import-actions').style.display = 'none';
+  document.getElementById('import-progress').style.display = 'block';
+  setImportProgress(0, pendingImport.length, '準備中...');
+
+  try {
+    if (mode === 'replace') {
+      // 全削除
+      setImportProgress(0, pendingImport.length, '既存データを削除中...');
+      const existing = await db.members.getAll();
+      for (let i = 0; i < existing.length; i++) {
+        await db.members.delete(existing[i].id);
+        if (i % 5 === 0) setImportProgress(0, pendingImport.length, `削除中... ${i+1}/${existing.length}件`);
+      }
+
+      // 追加
+      let added = 0;
+      for (const m of pendingImport) {
+        try {
+          await db.members.add(m);
+          added++;
+          setImportProgress(added, pendingImport.length, `追加中... ${added}/${pendingImport.length}件`);
+        } catch(e) { console.warn(e); }
+      }
+      setImportProgress(pendingImport.length, pendingImport.length, '完了！');
+      await new Promise(r => setTimeout(r, 600));
+      toast(`${added}件で置換しました`);
+
+    } else {
+      // マージ
+      const existing = await db.members.getAll();
+      const existingEmails = new Set(existing.map(m => m.email.toLowerCase()));
+      let added = 0, skipped = 0;
+
+      for (const m of pendingImport) {
+        if (existingEmails.has(m.email.toLowerCase())) {
+          skipped++;
+        } else {
+          try {
+            await db.members.add(m);
+            existingEmails.add(m.email.toLowerCase()); // 追加済みに加える
+            added++;
+          } catch(e) { console.warn(e); }
+        }
+        setImportProgress(added + skipped, pendingImport.length, `処理中... ${added+skipped}/${pendingImport.length}件`);
+      }
+      setImportProgress(pendingImport.length, pendingImport.length, '完了！');
+      await new Promise(r => setTimeout(r, 600));
+      toast(`${added}件追加 / 重複${skipped}件スキップ`);
+    }
+
+    closeImport();
+    refreshMemberList();
+  } catch (e) {
+    toast(e.message, true);
+    // エラー時はボタンを再有効化
+    document.getElementById('import-actions').style.display = 'flex';
+    document.getElementById('import-progress').style.display = 'none';
+    document.getElementById('btn-merge').disabled = false;
+    document.getElementById('btn-replace').disabled = false;
+  }
+}
+
+// ===== KEYBOARD SUPPORT =====
+document.addEventListener('keydown', e => {
+  if (document.getElementById('form-overlay').classList.contains('show')) {
+    if (e.key === 'Escape') closeForm();
+    if (e.key === 'Enter') submitForm();
+    return;
+  }
+  if (document.getElementById('delete-overlay').classList.contains('show')) {
+    if (e.key === 'Escape') closeDelete();
+    return;
+  }
+  if (document.getElementById('import-overlay').classList.contains('show')) {
+    if (e.key === 'Escape') closeImport();
+    return;
+  }
+});
+
+// ===== MENU HOVER =====
+document.querySelectorAll('#pg-top .menu-item').forEach((el, i) => {
+  el.addEventListener('mouseenter', () => {
+    document.querySelectorAll('#pg-top .menu-item').forEach((item, j) => {
+      item.classList.toggle('on', i === j);
+      item.querySelector('.mc').textContent = i === j ? '▶' : '　';
+    });
+  });
+});
+
+// ===== INIT =====
+// URLハッシュから初期ページを判定（index.htmlのメニューから遷移時に対応）
+(function() {
+  const hash = window.location.hash.replace('#', '') || 'member';
+  const validPages = ['member', 'compose', 'score', 'email', 'top'];
+  const startPage = validPages.includes(hash) ? hash : 'member';
+  goPage(startPage);
+})();
+</script>
+</body>
+</html>
