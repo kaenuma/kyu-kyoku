@@ -153,9 +153,32 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
   .nav{gap:8px;margin:10px 0}
   .nav-btn{padding:8px 14px;font-size:13px}
 }
+/* --- AUTH --- */
+.auth-overlay{position:fixed;inset:0;background:#0d0d2b;z-index:9999;display:flex;align-items:center;justify-content:center}
+.auth-box{border:3px double #ffd700;background:rgba(5,5,28,.98);padding:40px 32px;max-width:340px;width:90vw;text-align:center}
+.auth-title{color:#ffd700;font-size:26px;letter-spacing:.2em;margin-bottom:6px}
+.auth-sub{color:#6688cc;font-size:12px;margin-bottom:28px;letter-spacing:.1em}
+.auth-input{width:100%;font-family:inherit;font-size:18px;background:#0a0a20;border:2px solid #ffffff30;color:#fff;padding:14px;outline:none;text-align:center;margin-bottom:16px;letter-spacing:.3em;transition:border-color .2s}
+.auth-input:focus{border-color:#ffd700}
+.auth-btn{width:100%;font-family:inherit;font-size:16px;color:#0d0d2b;background:#ffd700;border:none;padding:14px;cursor:pointer;font-weight:bold;letter-spacing:.1em;transition:opacity .2s}
+.auth-btn:hover{opacity:.85}
+.auth-error{color:#ff6666;font-size:13px;margin-top:12px;display:none}
+
 </style>
 </head>
 <body>
+
+<!-- === パスワード認証 === -->
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-box">
+    <div class="auth-title">⛳ 球 極</div>
+    <div class="auth-sub">パスワードを入力してください</div>
+    <input class="auth-input" type="password" id="auth-password" placeholder="••••••••"
+           onkeydown="if(event.key==='Enter')checkPassword()">
+    <button class="auth-btn" onclick="checkPassword()">ログイン</button>
+    <div class="auth-error" id="auth-error">パスワードが違います</div>
+  </div>
+</div>
 
 <!-- === PAGE: メール管理トップ === -->
 <div id="pg-top">
@@ -423,6 +446,7 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
   </div>
 </div>
 
+
 <!-- === MODAL: Add/Edit フォーム === -->
 <div class="form-overlay" id="form-overlay">
   <div class="form-box">
@@ -512,6 +536,35 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
 
 <script src="data.js"></script>
 <script>
+// ===== 認証 =====
+async function checkPassword() {
+  const input = document.getElementById('auth-password').value.trim();
+  if (!input) return;
+
+  try {
+    const saved = await db.config.getPassword();
+    if (saved && input === saved) {
+      sessionStorage.setItem('kyu-auth', 'ok');
+      document.getElementById('auth-overlay').style.display = 'none';
+    } else {
+      const err = document.getElementById('auth-error');
+      err.style.display = 'block';
+      document.getElementById('auth-password').value = '';
+      document.getElementById('auth-password').focus();
+      setTimeout(() => err.style.display = 'none', 3000);
+    }
+  } catch (e) {
+    toast('認証エラー: ' + e.message, true);
+  }
+}
+
+// ページ読み込み時に認証チェック
+(function() {
+  if (sessionStorage.getItem('kyu-auth') === 'ok') {
+    document.getElementById('auth-overlay').style.display = 'none';
+  }
+})();
+
 // ===== STATE =====
 let selectedMemberId = null;       // 編集/削除用（単一選択）
 let memberBulkSelection = new Set(); // 一括選択用（email コピー）

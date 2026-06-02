@@ -140,5 +140,12 @@ const db = (function() {
     }
   };
 
-  return { members, rounds, scores, PENALTY_RATE: 1 };
+  const config = {
+    async getPassword() {
+      const doc = await firestore.collection('config').doc('app').get();
+      return doc.exists ? doc.data().password : null;
+    }
+  };
+
+  return { members, rounds, scores, config, PENALTY_RATE: 1 };
 })();
