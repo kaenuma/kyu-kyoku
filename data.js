@@ -90,7 +90,8 @@ const db = (function() {
       const round = {
         date: data.date,
         course: data.course,
-        address: (data.address || '').trim(),
+        par: data.par || 72,
+        participants: data.participants || [],
         createdAt: new Date().toISOString()
       };
       const ref = await firestore.collection('rounds').add(round);

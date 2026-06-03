@@ -165,6 +165,27 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
 .auth-error{color:#ff6666;font-size:13px;margin-top:12px;display:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
+/* --- SCORE TABLE COLUMNS --- */
+.sc-col-name{width:30%;text-align:left;font-size:15px}
+.sc-col-hc{width:10%;text-align:center;font-size:14px}
+.sc-col-score{width:24%;text-align:center}
+.sc-col-base{width:14%;text-align:center;font-size:14px;color:#8899bb}
+.sc-col-pen{width:22%;text-align:center}
+/* スコアモード切替タブ */
+.sc-mode-tab{flex:1;font-family:inherit;font-size:14px;padding:11px 6px;cursor:pointer;border:2px solid #ffd700;border-bottom:3px solid #ffd700;font-weight:bold;letter-spacing:.05em;transition:all .2s}
+.sc-mode-tab.active{background:#ffd700;color:#0d0d2b;border-bottom-color:#0d0d2b}
+.sc-mode-tab:not(.active){background:transparent;color:#ffd700}
+@media(max-width:640px){
+  .sc-col-name{font-size:13px;width:28%}
+  .sc-col-hc{font-size:12px;width:10%}
+  .sc-col-score{width:24%}
+  .sc-col-base{font-size:11px;width:14%}
+  .sc-col-pen{font-size:13px;width:24%}
+  .score-table{font-size:14px}
+  .score-table th,.score-table td{padding:8px 3px}
+  .sc-mode-tab{font-size:13px;padding:10px 4px}
+}
+
 </style>
 </head>
 <body>
@@ -353,101 +374,112 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
 <!-- === PAGE: スコア計算 === -->
 <div id="pg-score" style="display:none">
   <div class="dq-title">⛳ 球 極</div>
-  <div class="dq-sub">スコア計算</div>
-  <div class="dq-box">
-    <div class="score-big-title">📊 当日スコア・罰金計算</div>
+  <div class="dq-sub">スコア管理</div>
 
-    <!-- Par 入力 -->
-    <div id="sc-par-input">
-      <label class="score-label">本日のPar <span class="req">*</span></label>
-      <input class="score-input" type="number" id="sc-par" min="70" max="75" placeholder="例: 72" value="72">
-      <button class="score-btn primary" onclick="confirmPar()" style="margin-top:10px">Par を設定</button>
-    </div>
+  <!-- モード切替タブ -->
+  <div style="display:flex;max-width:540px;width:90vw;margin:8px auto 0">
+    <button id="btn-mode-create" class="sc-mode-tab active" onclick="setScoreMode('create')">
+      📅 ラウンド登録
+    </button>
+    <button id="btn-mode-play" class="sc-mode-tab" onclick="setScoreMode('play')">
+      ⛳ スコア入力
+    </button>
+  </div>
 
-    <!-- ラウンド作成フォーム -->
-    <div id="sc-new-round-form" style="border:1px solid #334455;padding:16px;margin-bottom:16px;border-radius:4px">
-      <label class="score-label" style="margin-top:0">📅 新しいラウンドを作成</label>
-      <div id="sc-shared-msg" style="display:none;color:#88cc88;font-size:13px;margin-bottom:12px;padding:8px;border:1px solid #4a8a4a;background:#0a1a0a;text-align:center">
-        ✓ email本文作成の情報を反映しています
-      </div>
-      <label class="score-label">日にち</label>
+  <!-- === CREATE MODE: ラウンド登録 === -->
+  <div id="sc-create-mode" class="dq-box" style="margin-top:0;border-top:none">
+
+    <!-- Step 1: 情報入力 & 参加者選択 -->
+    <div id="sc-step1">
+      <div class="score-big-title" style="font-size:17px;margin-bottom:14px">📅 ラウンド情報入力</div>
+      <label class="score-label">日にち <span class="req">*</span></label>
       <input class="score-input" type="date" id="sc-date">
-      <label class="score-label">コース名</label>
+      <label class="score-label">コース名 <span class="req">*</span></label>
       <input class="score-input" type="text" id="sc-course" placeholder="例：大利根カントリークラブ">
-      <button class="score-btn primary" id="btn-save-round" onclick="saveRound(this)" style="margin-top:8px">💾 ラウンドを保存</button>
-    </div>
-
-    <!-- 保存ラウンド呼び出し -->
-    <div id="sc-round-section" style="display:none">
-      <label class="score-label">保存ラウンド呼び出し</label>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
-        <select class="score-input" id="sc-round" style="flex:1;margin-bottom:0">
-          <option value="">-- ラウンドを選択 --</option>
-        </select>
-        <button id="btn-delete-round" onclick="deleteRound()"
-          style="display:none;flex-shrink:0;font-family:inherit;font-size:14px;color:#ff6666;background:transparent;border:2px solid #ff4444;padding:10px 14px;cursor:pointer;letter-spacing:.05em;white-space:nowrap"
-          onmouseover="this.style.background='#ff000020'" onmouseout="this.style.background='transparent'">
-          ✕ 削除
-        </button>
-      </div>
-    </div>
-
-    <!-- 参加者選択 -->
-    <div id="sc-participants" style="display:none">
-      <label class="score-label">参加者選択（最大12人）</label>
+      <label class="score-label">本日の Par <span class="req">*</span></label>
+      <input class="score-input" type="number" id="sc-par" min="70" max="75" value="72" placeholder="例: 72">
+      <label class="score-label" style="margin-top:14px">参加者選択（最大12人）</label>
       <div style="font-size:13px;color:#8899bb;margin-bottom:8px">
         選択中: <span id="sc-participant-count" style="color:#ffd700;font-weight:bold">0</span>人
       </div>
-      <input type="text" id="sc-participant-search" class="score-input" placeholder="🔍 名前またはメールで検索" style="margin-bottom:12px">
-      <div id="sc-member-list" style="margin:10px 0;max-height:300px;overflow-y:auto;border:1px solid #334455;padding:10px;border-radius:4px"></div>
-      <button class="score-btn primary" onclick="startScoreEntry()" style="margin-top:12px">スコア入力へ進む</button>
+      <input type="text" id="sc-participant-search" class="score-input" placeholder="🔍 名前またはメールで検索" style="margin-bottom:10px">
+      <div id="sc-member-list" style="max-height:260px;overflow-y:auto;border:1px solid #334455;padding:8px;border-radius:4px"></div>
+      <button class="score-btn primary" onclick="goToStep2()" style="margin-top:16px;width:100%">次へ →</button>
     </div>
 
-    <!-- スコア入力 -->
-    <div id="sc-entry" style="display:none">
-      <label class="score-label">スコア入力</label>
-      <div style="font-size:12px;color:#8899bb;margin-bottom:12px;padding:8px;background:#0a1a0a;border:1px solid #334455;border-radius:4px;letter-spacing:.05em">
-        📝 HC は編集可能です（変更があれば修正してください） | 💡 すべて入力で自動計算
+    <!-- Step 2: HC確認 & 保存 -->
+    <div id="sc-step2" style="display:none">
+      <div class="score-big-title" style="font-size:17px;margin-bottom:10px">✏️ HC確認・保存</div>
+      <div id="sc-step2-info" style="font-size:13px;color:#8899bb;padding:8px;background:#0a1a0a;border:1px solid #334455;border-radius:4px;margin-bottom:12px"></div>
+      <div style="font-size:12px;color:#8899bb;margin-bottom:10px">📝 HC を当日時点の値に修正してください</div>
+      <table class="score-table">
+        <thead><tr>
+          <th style="width:55%">名前</th>
+          <th style="width:45%">HC（編集可）</th>
+        </tr></thead>
+        <tbody id="sc-hc-tbody"></tbody>
+      </table>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="score-btn secondary" onclick="backToStep1()" style="flex:1;padding:12px 8px">← 戻る</button>
+        <button class="score-btn primary" id="btn-save-round" onclick="saveRound(this)" style="flex:2;padding:12px 8px">💾 ラウンドを保存</button>
       </div>
-      <table class="score-table" id="sc-table">
-        <thead>
-          <tr>
-            <th style="width:30%">名前</th>
-            <th style="width:15%">HC（編集可）</th>
-            <th style="width:20%">スコア</th>
-            <th style="width:15%">罰金</th>
-          </tr>
-        </thead>
-        <tbody id="sc-tbody"></tbody>
+    </div>
+  </div>
+
+  <!-- === PLAY MODE: スコア入力 === -->
+  <div id="sc-play-mode" class="dq-box" style="display:none;margin-top:0;border-top:none">
+    <label class="score-label" style="margin-top:0">保存ラウンド呼び出し</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <select class="score-input" id="sc-round-select" style="flex:1;margin-bottom:0"
+              onchange="loadRoundForPlay(this.value)">
+        <option value="">-- ラウンドを選択 --</option>
+      </select>
+      <button id="btn-delete-round" onclick="deleteRound()"
+        style="display:none;flex-shrink:0;font-family:inherit;font-size:14px;color:#ff6666;
+               background:transparent;border:2px solid #ff4444;padding:10px 12px;cursor:pointer"
+        onmouseover="this.style.background='#ff000020'"
+        onmouseout="this.style.background='transparent'">✕ 削除</button>
+    </div>
+
+    <!-- スコア入力テーブル -->
+    <div id="sc-play-entry" style="display:none">
+      <div id="sc-play-info" style="font-size:13px;color:#8899bb;padding:8px;background:#0a1a0a;border:1px solid #334455;border-radius:4px;margin-bottom:10px"></div>
+      <div style="font-size:12px;color:#8899bb;margin-bottom:8px">💡 スコアを入力すると罰金を自動計算します</div>
+      <table class="score-table" style="table-layout:fixed">
+        <thead><tr>
+          <th class="sc-col-name">名前</th>
+          <th class="sc-col-hc">HC</th>
+          <th class="sc-col-score">スコア</th>
+          <th class="sc-col-pen">罰金</th>
+        </tr></thead>
+        <tbody id="sc-play-tbody"></tbody>
       </table>
     </div>
 
     <!-- 計算結果 -->
-    <div id="sc-results" style="display:none">
+    <div id="sc-play-results" style="display:none">
       <label class="score-label">計算結果</label>
-      <table class="score-table">
-        <thead>
-          <tr>
-            <th style="width:30%">名前</th>
-            <th style="width:15%">HC</th>
-            <th style="width:15%">スコア</th>
-            <th style="width:15%">基準</th>
-            <th style="width:25%">罰金</th>
-          </tr>
-        </thead>
+      <table class="score-table" style="table-layout:fixed">
+        <thead><tr>
+          <th class="sc-col-name">名前</th>
+          <th class="sc-col-hc">HC</th>
+          <th class="sc-col-score">Sc</th>
+          <th class="sc-col-base">基準</th>
+          <th class="sc-col-pen">罰金</th>
+        </tr></thead>
         <tbody id="sc-result-tbody"></tbody>
       </table>
       <div class="score-total" id="sc-total">合計罰金: $0</div>
-      <div class="score-actions" style="flex-direction:column;gap:10px">
+      <div style="display:flex;flex-direction:column;gap:10px;margin:14px 0">
         <button class="score-btn primary" id="btn-save-score" onclick="saveScoreData(this)">💾 保存データ</button>
         <button class="score-btn secondary" onclick="copyPenaltyResults(this)">📧 結果をメールコピー</button>
+        <button class="score-btn secondary" onclick="copyParticipantEmails(this)">📋 参加者emailをコピー</button>
       </div>
-      <div id="sc-save-msg" style="display:none;text-align:center;color:#88cc88;font-size:13px;margin-top:8px">✓ 保存しました</div>
-    </div>
+      <div id="sc-save-msg" style="display:none;text-align:center;color:#88cc88;font-size:13px;padding:8px">✓ 保存しました</div>
     </div>
   </div>
 
-  <div class="nav">
+  <div class="nav" style="margin-top:8px">
     <button class="nav-btn" onclick="goPage('top')">◀ 戻る</button>
     <button class="nav-btn home" onclick="goHome()">🏠 ホーム</button>
   </div>
@@ -1006,165 +1038,195 @@ function esc(str) {
 let currentRound = null;
 let selectedParticipants = [];
 let scoreData = [];
-let currentPar = 72;
+let currentRoundPar = 72;
+
+// 名前の短縮表示（スペース/全角スペース/アンダースコア前まで）
+function shortName(name) {
+  if (!name) return '(名前なし)';
+  return name.trim().split(/[\s　_]/)[0] || name;
+}
+
+// モード切替
+function setScoreMode(mode) {
+  const createBox = document.getElementById('sc-create-mode');
+  const playBox   = document.getElementById('sc-play-mode');
+  const createTab = document.getElementById('btn-mode-create');
+  const playTab   = document.getElementById('btn-mode-play');
+  if (mode === 'create') {
+    createBox.style.display = 'block'; playBox.style.display = 'none';
+    createTab.classList.add('active'); playTab.classList.remove('active');
+  } else {
+    createBox.style.display = 'none'; playBox.style.display = 'block';
+    playTab.classList.add('active'); createTab.classList.remove('active');
+    reloadRoundSelect();
+  }
+}
 
 async function initScore() {
   currentRound = null;
   selectedParticipants = [];
   selectedParticipantIds.clear();
   scoreData = [];
-  currentPar = 72;
+  currentRoundPar = 72;
 
-  document.getElementById('sc-par-input').style.display = 'block';
-  document.getElementById('sc-new-round-form').style.display = 'none';
-  document.getElementById('sc-round-section').style.display = 'none';
-  document.getElementById('sc-participants').style.display = 'none';
-  document.getElementById('sc-entry').style.display = 'none';
-  document.getElementById('sc-results').style.display = 'none';
+  document.getElementById('sc-step1').style.display = 'block';
+  document.getElementById('sc-step2').style.display = 'none';
 
-  // email本文作成で保存されたデータがあれば反映
   const today = new Date();
   const yyyy = today.getFullYear();
   const mm = String(today.getMonth() + 1).padStart(2, '0');
   const dd = String(today.getDate()).padStart(2, '0');
   document.getElementById('sc-date').value = sharedRoundData?.date || `${yyyy}-${mm}-${dd}`;
   document.getElementById('sc-course').value = sharedRoundData?.course || '';
-  document.getElementById('sc-shared-msg').style.display = sharedRoundData ? 'block' : 'none';
+
+  await loadParticipantList();
+  setScoreMode('create');
+}
+
+// Step 1 → Step 2（HC確認画面）
+function goToStep2() {
+  if (selectedParticipantIds.size === 0) { toast('参加者を選択してください', true); return; }
+  const date   = document.getElementById('sc-date').value;
+  const course = document.getElementById('sc-course').value.trim();
+  const par    = parseInt(document.getElementById('sc-par').value);
+  if (!date || !course) { toast('日にちとコース名を入力してください', true); return; }
+  if (!par || par < 70 || par > 75) { toast('Parを70〜75で入力してください', true); return; }
+
+  selectedParticipants = Array.from(selectedParticipantIds).map(id => {
+    const m = allParticipantMembers.find(x => x.id === id);
+    return { id: m.id, name: m.name || '(名前なし)', hc: m.hc !== undefined ? m.hc : 0, email: m.email || '' };
+  });
+
+  document.getElementById('sc-step2-info').textContent =
+    `📅 ${date}　⛳ ${course}　Par ${par}　参加 ${selectedParticipants.length}名`;
+
+  document.getElementById('sc-hc-tbody').innerHTML = selectedParticipants.map(p => `
+    <tr>
+      <td class="name">${esc(p.name)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button onclick="stepHC(this,-1)" style="font-family:inherit;font-size:16px;font-weight:bold;color:#ffd700;background:#1a1a3a;border:1px solid #444;width:30px;height:34px;cursor:pointer;flex-shrink:0;line-height:1">−</button>
+          <input type="text" class="score-input hc-input" data-id="${p.id}" value="${p.hc}" inputmode="numeric" style="width:50px;text-align:center;padding:6px 2px;flex:1;margin-bottom:0">
+          <button onclick="stepHC(this,+1)" style="font-family:inherit;font-size:16px;font-weight:bold;color:#ffd700;background:#1a1a3a;border:1px solid #444;width:30px;height:34px;cursor:pointer;flex-shrink:0;line-height:1">＋</button>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  document.getElementById('sc-step1').style.display = 'none';
+  document.getElementById('sc-step2').style.display = 'block';
+}
+
+function backToStep1() {
+  document.getElementById('sc-step1').style.display = 'block';
+  document.getElementById('sc-step2').style.display = 'none';
+}
+
+// ラウンドを保存（日付＋コース＋Par＋参加者HC）
+async function saveRound(btn) {
+  const date   = document.getElementById('sc-date').value;
+  const course = document.getElementById('sc-course').value.trim();
+  const par    = parseInt(document.getElementById('sc-par').value);
+  const hcInputs = document.querySelectorAll('#sc-hc-tbody .hc-input');
+  const participants = selectedParticipants.map((p, i) => ({
+    id: p.id, name: p.name, email: p.email || '',
+    hc: parseHC(hcInputs[i]?.value ?? p.hc)
+  }));
+  const orig = btn.textContent;
+  btn.textContent = '保存中...'; btn.disabled = true;
+  try {
+    currentRound = await db.rounds.add({ date, course, par, participants });
+    btn.textContent = '✓ 保存しました！';
+    btn.style.background = '#2a5a2a'; btn.style.color = '#88ff88';
+    toast(`「${course}」を保存しました`);
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; btn.style.color = ''; btn.disabled = false; }, 2000);
+  } catch (e) { btn.textContent = orig; btn.disabled = false; toast(e.message, true); }
+}
+
+// ドロップダウン再読み込み
+async function reloadRoundSelect() {
+  const rounds = await db.rounds.getRecent(20);
+  const sel = document.getElementById('sc-round-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- ラウンドを選択 --</option>' +
+    rounds.map(r => `<option value="${r.id}">${r.date} — ${r.course}</option>`).join('');
+}
+
+// スコア入力モード：ラウンド読み込み
+async function loadRoundForPlay(roundId) {
+  const delBtn = document.getElementById('btn-delete-round');
+  document.getElementById('sc-play-entry').style.display   = 'none';
+  document.getElementById('sc-play-results').style.display = 'none';
+  document.getElementById('sc-save-msg').style.display     = 'none';
+  scoreData = [];
+  if (!roundId) { if (delBtn) delBtn.style.display = 'none'; currentRound = null; return; }
+
+  currentRound = await db.rounds.get(roundId);
+  if (!currentRound) { toast('ラウンドが見つかりません', true); return; }
+  if (delBtn) delBtn.style.display = 'block';
+
+  currentRoundPar = currentRound.par || 72;
+  const participants = currentRound.participants || [];
+
+  document.getElementById('sc-play-info').textContent =
+    `📅 ${currentRound.date}　⛳ ${currentRound.course}　Par ${currentRoundPar}　${participants.length}名`;
+
+  document.getElementById('sc-play-tbody').innerHTML = participants.map(p => `
+    <tr>
+      <td class="name sc-col-name">${esc(shortName(p.name))}</td>
+      <td class="sc-col-hc" style="color:#aabbcc">${p.hc}</td>
+      <td class="sc-col-score">
+        <input type="number" class="score-input score-input-val"
+               data-id="${p.id}" data-hc="${p.hc}" placeholder="—" min="50" max="200"
+               style="width:100%;padding:8px 2px;font-size:16px;text-align:center;margin-bottom:0">
+      </td>
+      <td class="sc-col-pen penalty-display">—</td>
+    </tr>`).join('');
+
+  document.querySelectorAll('#sc-play-tbody .score-input-val').forEach(inp =>
+    inp.addEventListener('input', updatePlayPenalty));
+
+  document.getElementById('sc-play-entry').style.display = 'block';
 }
 
 // ラウンド削除
 async function deleteRound() {
   if (!currentRound) return;
-
-  const label = `${currentRound.date} — ${currentRound.course}`;
-  if (!confirm(`「${label}」を削除しますか？\nこの操作は元に戻せません。`)) return;
-
+  if (!confirm(`「${currentRound.date} — ${currentRound.course}」を削除しますか？\nこの操作は元に戻せません。`)) return;
   try {
     await db.rounds.delete(currentRound.id);
     toast('ラウンドを削除しました');
     currentRound = null;
-
-    // 削除ボタンを隠す
-    document.getElementById('btn-delete-round').style.display = 'none';
-
-    document.getElementById('sc-participants').style.display = 'none';
-    document.getElementById('sc-entry').style.display = 'none';
-    document.getElementById('sc-results').style.display = 'none';
-
-    // ドロップダウンを再読み込み
-    await reloadRoundSelect('');
-    currentRound = null;
-  } catch (e) {
-    toast(e.message, true);
-  }
+    document.getElementById('btn-delete-round').style.display   = 'none';
+    document.getElementById('sc-play-entry').style.display      = 'none';
+    document.getElementById('sc-play-results').style.display    = 'none';
+    await reloadRoundSelect();
+    document.getElementById('sc-round-select').value = '';
+  } catch (e) { toast(e.message, true); }
 }
 
-// ドロップダウン再読み込み共通関数
-async function reloadRoundSelect(selectId) {
-  const rounds = await db.rounds.getRecent(20);
-  const roundSelect = document.getElementById('sc-round');
-  roundSelect.innerHTML = '<option value="">-- ラウンドを選択 --</option>' +
-    rounds.map(r => `<option value="${r.id}">${r.date} — ${r.course}</option>`).join('');
-  if (selectId) roundSelect.value = selectId;
-}
+// 参加者リスト
+let allParticipantMembers = [];
+let selectedParticipantIds = new Set();
 
-// Par 確定
-async function confirmPar() {
-  const par = parseInt(document.getElementById('sc-par').value);
-  if (!par || par < 70 || par > 75) {
-    toast('Parを70-75で入力してください', true);
-    return;
-  }
-  currentPar = par;
-  document.getElementById('sc-par-input').style.display = 'none';
-  document.getElementById('sc-new-round-form').style.display = 'block';
-  document.getElementById('sc-round-section').style.display = 'block';
-  await reloadRoundSelect('');
-  toast(`Par ${par} で設定しました`);
-}
-
-// ラウンド選択
-document.getElementById('sc-round')?.addEventListener('change', async function() {
-  const id = this.value;
-  const deleteBtn = document.getElementById('btn-delete-round');
-  if (id === '') {
-    document.getElementById('sc-participants').style.display = 'none';
-    document.getElementById('sc-entry').style.display = 'none';
-    document.getElementById('sc-results').style.display = 'none';
-    if (deleteBtn) deleteBtn.style.display = 'none';
-    currentRound = null;
-  } else {
-    currentRound = await db.rounds.get(id);
-    if (deleteBtn) deleteBtn.style.display = 'block';
-    await loadParticipants();
-  }
-});
-
-// ラウンドを保存
-async function saveRound(btn) {
-  const date = document.getElementById('sc-date').value;
-  const course = document.getElementById('sc-course').value.trim();
-
-  if (!date || !course) {
-    toast('日にちとコース名を入力してください', true);
-    return;
-  }
-
-  const orig = btn.textContent;
-  btn.textContent = '保存中...';
-  btn.disabled = true;
-
-  try {
-    currentRound = await db.rounds.add({ date, course });
-    // ドロップダウンに追加して選択
-    await reloadRoundSelect(currentRound.id);
-    btn.textContent = '✓ 保存しました！';
-    btn.style.background = '#2a5a2a';
-    btn.style.color = '#88ff88';
-    toast(`「${course}」を保存しました`);
-    setTimeout(() => {
-      btn.textContent = orig;
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.disabled = false;
-    }, 2000);
-    // 参加者選択へ進む
-    await loadParticipants();
-  } catch (e) {
-    btn.textContent = orig;
-    btn.disabled = false;
-    toast(e.message, true);
-  }
-}
-
-// 参加者一覧表示
-let allParticipantMembers = []; // 検索用に全メンバーを保存
-let selectedParticipantIds = new Set(); // 選択されたメンバーの ID を保存
-
-async function loadParticipants() {
+async function loadParticipantList() {
   allParticipantMembers = await db.members.getAll();
-
-  // 検索ボックスをリセット
-  const searchInput = document.getElementById('sc-participant-search');
-  if (searchInput) searchInput.value = '';
-
-  // 選択状態をリセット
+  const si = document.getElementById('sc-participant-search');
+  if (si) si.value = '';
   selectedParticipantIds.clear();
-
+  const cnt = document.getElementById('sc-participant-count');
+  if (cnt) cnt.textContent = '0';
   renderParticipantList(allParticipantMembers);
-  document.getElementById('sc-participants').style.display = 'block';
 }
 
 function renderParticipantList(members) {
   const list = document.getElementById('sc-member-list');
   list.innerHTML = members.map(m => {
-    const isChecked = selectedParticipantIds.has(m.id);
+    const checked = selectedParticipantIds.has(m.id);
     return `
     <div class="score-checkbox">
       <label>
-        <input type="checkbox" value="${m.id}" data-name="${esc(m.name||'(名前なし)')}" data-hc="${m.hc||0}"
-               ${isChecked ? 'checked' : ''} onchange="toggleParticipant('${m.id}')">
-        <span>${esc(m.name || '(名前なし)')} (HC: ${m.hc || 0})</span>
+        <input type="checkbox" value="${m.id}" ${checked ? 'checked' : ''} onchange="toggleParticipant('${m.id}')">
+        <span>${esc(m.name || '(名前なし)')} (HC: ${m.hc !== undefined ? m.hc : 0})</span>
       </label>
     </div>`;
   }).join('');
@@ -1176,79 +1238,23 @@ function toggleParticipant(id) {
   } else {
     if (selectedParticipantIds.size >= 12) {
       toast('参加者は最大12人までです', true);
-      // チェックを戻す
-      document.querySelector(`input[value="${id}"]`).checked = false;
+      const cb = document.querySelector(`#sc-member-list input[value="${id}"]`);
+      if (cb) cb.checked = false;
       return;
     }
     selectedParticipantIds.add(id);
   }
-  // 選択数をリアルタイム表示
-  updateParticipantCount();
-}
-
-function updateParticipantCount() {
-  const count = selectedParticipantIds.size;
-  const countEl = document.getElementById('sc-participant-count');
-  if (countEl) countEl.textContent = count;
+  const cnt = document.getElementById('sc-participant-count');
+  if (cnt) cnt.textContent = selectedParticipantIds.size;
 }
 
 function filterParticipants() {
-  const query = document.getElementById('sc-participant-search').value.toLowerCase().trim();
-  if (!query) {
-    renderParticipantList(allParticipantMembers);
-    return;
-  }
-
-  const filtered = allParticipantMembers.filter(m =>
-    (m.name && m.name.toLowerCase().includes(query)) ||
-    (m.email && m.email.toLowerCase().includes(query))
+  const q = document.getElementById('sc-participant-search').value.toLowerCase().trim();
+  const filtered = !q ? allParticipantMembers : allParticipantMembers.filter(m =>
+    (m.name && m.name.toLowerCase().includes(q)) ||
+    (m.email && m.email.toLowerCase().includes(q))
   );
   renderParticipantList(filtered);
-}
-
-// スコア入力画面へ
-function startScoreEntry() {
-  if (selectedParticipantIds.size === 0) {
-    toast('参加者を選択してください', true);
-    return;
-  }
-
-  selectedParticipants = Array.from(selectedParticipantIds).map(id => {
-    const m = allParticipantMembers.find(x => x.id === id);
-    return {
-      id: m.id,
-      name: m.name || '(名前なし)',
-      hc: m.hc || 0
-    };
-  });
-
-  const tbody = document.getElementById('sc-tbody');
-  tbody.innerHTML = selectedParticipants.map(p => `
-    <tr>
-      <td class="name">${p.name}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:2px">
-          <button onclick="stepHC(this,-1)" style="font-family:inherit;font-size:18px;font-weight:bold;color:#ffd700;background:#1a1a3a;border:1px solid #444;width:32px;height:36px;cursor:pointer;flex-shrink:0;line-height:1">−</button>
-          <input type="text" class="score-input hc-input" data-id="${p.id}" value="${p.hc}" inputmode="numeric" style="width:52px;text-align:center;padding:6px 2px;flex:1">
-          <button onclick="stepHC(this,+1)" style="font-family:inherit;font-size:18px;font-weight:bold;color:#ffd700;background:#1a1a3a;border:1px solid #444;width:32px;height:36px;cursor:pointer;flex-shrink:0;line-height:1">＋</button>
-        </div>
-      </td>
-      <td><input type="number" class="score-input score-input-val" data-id="${p.id}" placeholder="スコア" min="50" max="150"></td>
-      <td class="penalty-display">—</td>
-    </tr>
-  `).join('');
-
-  // リアルタイムで罰金を計算・表示
-  document.querySelectorAll('.hc-input, .score-input-val').forEach(input => {
-    input.addEventListener('input', updatePenaltyDisplay);
-  });
-  // HC は blur 時に正規化
-  document.querySelectorAll('.hc-input').forEach(input => {
-    input.addEventListener('blur', updatePenaltyDisplay);
-  });
-
-  document.getElementById('sc-participants').style.display = 'none';
-  document.getElementById('sc-entry').style.display = 'block';
 }
 
 // HC入力の解析（負数対応）
@@ -1265,131 +1271,72 @@ function parseHC(value) {
 // HC ＋／− ボタン
 function stepHC(btn, delta) {
   const row = btn.closest('tr');
-  const hcInput = row.querySelector('.hc-input');
-  const current = parseHC(hcInput.value);
-  const newVal = Math.max(-30, Math.min(30, current + delta));
-  hcInput.value = newVal;
-  // 罰金をリアルタイム更新
-  hcInput.dispatchEvent(new Event('input'));
+  const inp = row.querySelector('.hc-input');
+  inp.value = Math.max(-30, Math.min(30, parseHC(inp.value) + delta));
 }
 
-// リアルタイム罰金表示
-function updatePenaltyDisplay(e) {
-  const row = e.target.closest('tr');
-  const hcInput = row.querySelector('.hc-input');
-  const raw = hcInput.value.trim();
+// リアルタイム罰金計算（スコア入力画面）
+function updatePlayPenalty(e) {
+  const row   = e.target.closest('tr');
+  const hc    = parseInt(row.querySelector('.score-input-val').dataset.hc) || 0;
+  const score = parseInt(e.target.value);
+  const td    = row.querySelector('.penalty-display');
 
-  // blur時のみ値を正規化（入力途中の "-" や空欄を壊さない）
-  if (e.type === 'blur') {
-    hcInput.value = parseHC(raw);
-  }
-
-  // "-" だけ・空欄のときは罰金計算をスキップ
-  if (raw === '-' || raw === '') {
-    checkAllScoresEntered();
-    return;
-  }
-
-  const hc = parseHC(raw);
-  const score = parseInt(row.querySelector('.score-input-val').value);
-  const penaltyTd = row.querySelector('.penalty-display');
-
-  if (!score) {
-    penaltyTd.textContent = '—';
-    penaltyTd.className = 'penalty-display';
+  if (!score || isNaN(score)) {
+    td.textContent = '—'; td.className = 'sc-col-pen penalty-display';
   } else {
-    const base = 90 + hc;
-    const parAdjust = 72 - currentPar;
-    const penalty = Math.max(0, score - base + parAdjust);
-
-    if (penalty > 0) {
-      penaltyTd.textContent = '$' + penalty;
-      penaltyTd.className = 'penalty-display penalty bold';
+    const pen = Math.max(0, score - (90 + hc) + (72 - currentRoundPar));
+    if (pen > 0) {
+      td.textContent = '$' + pen; td.className = 'sc-col-pen penalty-display penalty bold';
     } else {
-      penaltyTd.textContent = '—';
-      penaltyTd.className = 'penalty-display zero';
+      td.textContent = '—'; td.className = 'sc-col-pen penalty-display zero';
     }
   }
-
-  // 全メンバーのスコアが入力されたかチェック
-  checkAllScoresEntered();
+  checkAllPlayScores();
 }
 
-// 全メンバーのスコア入力完了チェック
-function checkAllScoresEntered() {
-  const rows = document.querySelectorAll('#sc-tbody tr');
-  let allEntered = true;
-
-  rows.forEach(row => {
-    const hc = row.querySelector('.hc-input').value.trim();
-    const score = row.querySelector('.score-input-val').value.trim();
-    if (!hc || !score) {
-      allEntered = false;
-    }
-  });
-
-  // 全て入力されたら結果を自動表示
-  if (allEntered && rows.length > 0) {
-    setTimeout(() => calculatePenalties(), 300);
+// 全スコア入力完了チェック
+function checkAllPlayScores() {
+  const inputs = document.querySelectorAll('#sc-play-tbody .score-input-val');
+  if (inputs.length > 0 && Array.from(inputs).every(i => i.value.trim() !== '')) {
+    setTimeout(calculateResults, 300);
   }
 }
 
-// 罰金計算
-function calculatePenalties() {
-  const rows = document.querySelectorAll('#sc-tbody tr');
+// 結果計算・表示
+function calculateResults() {
+  const rows = document.querySelectorAll('#sc-play-tbody tr');
   scoreData = [];
-  let hasError = false;
 
   rows.forEach(row => {
-    const hcInput = row.querySelector('.hc-input');
-    const scoreInput = row.querySelector('.score-input-val');
-    const id = scoreInput.dataset.id;
-    const hc = parseHC(hcInput.value);
-    const score = parseInt(scoreInput.value);
+    const inp   = row.querySelector('.score-input-val');
+    const id    = inp.dataset.id;
+    const hc    = parseInt(inp.dataset.hc) || 0;
+    const score = parseInt(inp.value);
+    if (isNaN(score) || score < 50) return;
 
-    if (!score || score < 50 || score > 150) {
-      hasError = true;
-      return;
-    }
-
-    const p = selectedParticipants.find(x => x.id === id);
-    const base = 90 + hc;
-    const parAdjust = 72 - currentPar;
-    const penalty = Math.max(0, score - base + parAdjust);
-
+    const p = (currentRound.participants || []).find(x => x.id === id) || {};
+    const base    = 90 + hc;
+    const penalty = Math.max(0, score - base + (72 - currentRoundPar));
     scoreData.push({
-      id: p.id,
-      name: p.name,
-      hc: hc,
-      score: score,
-      base: base,
-      penalty: penalty,
-      hc_after: penalty > 0 ? hc + 1 : hc
+      id: p.id || id, name: p.name || '(名前なし)', email: p.email || '',
+      hc, score, base, penalty, hc_after: penalty > 0 ? hc + 1 : hc
     });
   });
 
-  if (hasError) {
-    toast('すべての参加者のスコアを入力してください', true);
-    return;
-  }
-
-  // 結果表示
-  const resultTbody = document.getElementById('sc-result-tbody');
-  resultTbody.innerHTML = scoreData.map(d => `
+  document.getElementById('sc-result-tbody').innerHTML = scoreData.map(d => `
     <tr>
-      <td class="name">${d.name}</td>
-      <td>${d.hc}</td>
-      <td>${d.score}</td>
-      <td>${d.base}</td>
-      <td class="${d.penalty > 0 ? 'penalty bold' : 'zero'}">${d.penalty > 0 ? '$' + d.penalty : '—'}</td>
-    </tr>
-  `).join('');
+      <td class="name sc-col-name">${esc(shortName(d.name))}</td>
+      <td class="sc-col-hc">${d.hc}</td>
+      <td class="sc-col-score">${d.score}</td>
+      <td class="sc-col-base">${d.base}</td>
+      <td class="sc-col-pen ${d.penalty > 0 ? 'penalty bold' : 'zero'}">${d.penalty > 0 ? '$' + d.penalty : '—'}</td>
+    </tr>`).join('');
 
-  const total = scoreData.reduce((sum, d) => sum + d.penalty, 0);
+  const total = scoreData.reduce((s, d) => s + d.penalty, 0);
   document.getElementById('sc-total').textContent = `合計罰金: $${total}`;
-
-  document.getElementById('sc-entry').style.display = 'none';
-  document.getElementById('sc-results').style.display = 'block';
+  document.getElementById('sc-play-entry').style.display   = 'none';
+  document.getElementById('sc-play-results').style.display = 'block';
 }
 
 // 💾 保存データ ボタン
@@ -1439,71 +1386,52 @@ async function saveScoreData(btn) {
   }
 }
 
-// スコア・罰金結果をコピー
+// 📧 結果をメールコピー
 function copyPenaltyResults(btn) {
-  if (!currentRound || scoreData.length === 0) return;
-
-  const total = scoreData.reduce((sum, d) => sum + d.penalty, 0);
-  const dateStr = currentRound.date;
-
-  let body = `【${dateStr} スコア・罰金計算結果】\n`;
-  body += `コース: ${currentRound.course}\n`;
-  body += `Par: ${currentPar}\n\n`;
+  if (!currentRound || !scoreData.length) { toast('計算結果がありません', true); return; }
+  const total = scoreData.reduce((s, d) => s + d.penalty, 0);
+  let body = `【${currentRound.date} スコア・罰金計算結果】\n`;
+  body += `コース: ${currentRound.course}\nPar: ${currentRoundPar}\n\n`;
   body += `━━━━━━━━━━━━━━━━━━━\n\n`;
-
   scoreData.forEach(d => {
-    body += `${d.name}\n`;
-    body += `  HC: ${d.hc}  /  スコア: ${d.score}\n`;
-    body += `  基準: ${d.base}  /  `;
-    if (d.penalty > 0) {
-      body += `罰金: $${d.penalty} ✓\n`;
-      body += `  次回HC: ${d.hc_after}\n`;
-    } else {
-      body += `罰金: —\n`;
-    }
+    body += `${d.name}\n  HC: ${d.hc}  /  スコア: ${d.score}\n  基準: ${d.base}  /  `;
+    body += d.penalty > 0 ? `罰金: $${d.penalty} ✓\n` : `罰金: —\n`;
     body += `\n`;
   });
+  body += `━━━━━━━━━━━━━━━━━━━\n合計罰金: $${total}`;
 
-  body += `━━━━━━━━━━━━━━━━━━━\n`;
-  body += `合計罰金: $${total}\n`;
-
-  const originalText = btn.textContent;
-  const originalBg = btn.style.background;
-  const originalColor = btn.style.color;
-
-  navigator.clipboard.writeText(body).then(() => {
+  const orig = btn.textContent;
+  const done = () => {
     btn.textContent = '✓ コピーしました！';
-    btn.style.background = '#4a8a4a';
-    btn.style.color = '#88ff88';
-    toast('結果をメール本文としてコピーしました');
-    setTimeout(() => {
-      btn.textContent = originalText;
-      btn.style.background = originalBg;
-      btn.style.color = originalColor;
-    }, 2000);
-  }).catch(() => {
+    btn.style.background = '#2a5a2a'; btn.style.color = '#88ff88';
+    toast('結果をコピーしました');
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; btn.style.color = ''; }, 2000);
+  };
+  navigator.clipboard.writeText(body).then(done).catch(() => {
     const ta = document.createElement('textarea');
-    ta.value = body;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    btn.textContent = '✓ コピーしました！';
-    btn.style.background = '#4a8a4a';
-    btn.style.color = '#88ff88';
-    toast('結果をメール本文としてコピーしました');
-    setTimeout(() => {
-      btn.textContent = originalText;
-      btn.style.background = originalBg;
-      btn.style.color = originalColor;
-    }, 2000);
+    ta.value = body; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta); done();
   });
 }
 
-// メール本文をコピー（旧版 - 互換性のため保持）
-function copyPenaltyEmail() {
-  if (!currentRound || scoreData.length === 0) return;
-  copyPenaltyResults(document.querySelector('button[onclick="copyPenaltyResults(this)"]') || {textContent: '📧 結果をメールコピー', style: {}});
+// 📋 参加者emailをコピー
+function copyParticipantEmails(btn) {
+  if (!currentRound) { toast('ラウンドを選択してください', true); return; }
+  const ps = (currentRound.participants || []).filter(p => p.email);
+  if (!ps.length) { toast('emailアドレスが登録されていません', true); return; }
+  const emails = ps.map(p => p.email).join('; ');
+  const orig = btn.textContent;
+  const done = () => {
+    btn.textContent = `✓ ${ps.length}件コピー！`;
+    btn.style.background = '#2a5a2a'; btn.style.color = '#88ff88';
+    toast('参加者のemailをコピーしました');
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; btn.style.color = ''; }, 2000);
+  };
+  navigator.clipboard.writeText(emails).then(done).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = emails; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta); done();
+  });
 }
 
 // ===== SHARED STATE: compose → score =====
