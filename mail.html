@@ -163,6 +163,7 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
 .auth-btn{width:100%;font-family:inherit;font-size:16px;color:#0d0d2b;background:#ffd700;border:none;padding:14px;cursor:pointer;font-weight:bold;letter-spacing:.1em;transition:opacity .2s}
 .auth-btn:hover{opacity:.85}
 .auth-error{color:#ff6666;font-size:13px;margin-top:12px;display:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 </style>
 </head>
@@ -177,6 +178,9 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
            onkeydown="if(event.key==='Enter')checkPassword()">
     <button class="auth-btn" onclick="checkPassword()">ログイン</button>
     <div class="auth-error" id="auth-error">パスワードが違います</div>
+    <div id="auth-wait-msg" style="display:none;color:#88cc88;font-size:14px;margin-top:14px;letter-spacing:.05em;animation:pulse 1s infinite">
+      ⛳ 画面が切り替わるまで少々お待ちください...
+    </div>
   </div>
 </div>
 
@@ -541,19 +545,38 @@ async function checkPassword() {
   const input = document.getElementById('auth-password').value.trim();
   if (!input) return;
 
+  const btn  = document.querySelector('.auth-btn');
+  const err  = document.getElementById('auth-error');
+  const msg  = document.getElementById('auth-wait-msg');
+
+  // ボタンを「確認中...」に変更
+  btn.textContent = '確認中...';
+  btn.disabled = true;
+  err.style.display = 'none';
+
   try {
     const saved = await db.config.getPassword();
     if (saved && input === saved) {
+      // 成功メッセージを表示
+      msg.style.display = 'block';
+      btn.textContent = '✓ ログイン成功';
+      btn.style.background = '#4a8a4a';
+      btn.style.color = '#88ff88';
       sessionStorage.setItem('kyu-auth', 'ok');
-      document.getElementById('auth-overlay').style.display = 'none';
+      setTimeout(() => {
+        document.getElementById('auth-overlay').style.display = 'none';
+      }, 1200);
     } else {
-      const err = document.getElementById('auth-error');
       err.style.display = 'block';
       document.getElementById('auth-password').value = '';
       document.getElementById('auth-password').focus();
+      btn.textContent = 'ログイン';
+      btn.disabled = false;
       setTimeout(() => err.style.display = 'none', 3000);
     }
   } catch (e) {
+    btn.textContent = 'ログイン';
+    btn.disabled = false;
     toast('認証エラー: ' + e.message, true);
   }
 }
