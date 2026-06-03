@@ -364,12 +364,25 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
       <button class="score-btn primary" onclick="confirmPar()" style="margin-top:10px">Par を設定</button>
     </div>
 
-    <!-- ラウンド選択/新規作成 -->
+    <!-- ラウンド作成フォーム -->
+    <div id="sc-new-round-form" style="border:1px solid #334455;padding:16px;margin-bottom:16px;border-radius:4px">
+      <label class="score-label" style="margin-top:0">📅 新しいラウンドを作成</label>
+      <div id="sc-shared-msg" style="display:none;color:#88cc88;font-size:13px;margin-bottom:12px;padding:8px;border:1px solid #4a8a4a;background:#0a1a0a;text-align:center">
+        ✓ email本文作成の情報を反映しています
+      </div>
+      <label class="score-label">日にち</label>
+      <input class="score-input" type="date" id="sc-date">
+      <label class="score-label">コース名</label>
+      <input class="score-input" type="text" id="sc-course" placeholder="例：大利根カントリークラブ">
+      <button class="score-btn primary" id="btn-save-round" onclick="saveRound(this)" style="margin-top:8px">💾 ラウンドを保存</button>
+    </div>
+
+    <!-- 保存ラウンド呼び出し -->
     <div id="sc-round-section" style="display:none">
-      <label class="score-label">ラウンド選択</label>
+      <label class="score-label">保存ラウンド呼び出し</label>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
         <select class="score-input" id="sc-round" style="flex:1;margin-bottom:0">
-          <option value="">＋ 新規ラウンド作成</option>
+          <option value="">-- ラウンドを選択 --</option>
         </select>
         <button id="btn-delete-round" onclick="deleteRound()"
           style="display:none;flex-shrink:0;font-family:inherit;font-size:14px;color:#ff6666;background:transparent;border:2px solid #ff4444;padding:10px 14px;cursor:pointer;letter-spacing:.05em;white-space:nowrap"
@@ -377,18 +390,6 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
           ✕ 削除
         </button>
       </div>
-
-      <div id="sc-new-round" style="display:none">
-      <div id="sc-shared-msg" style="display:none;color:#88cc88;font-size:13px;margin-bottom:12px;padding:8px;border:1px solid #4a8a4a;background:#0a1a0a;text-align:center">
-        ✓ email本文作成の情報を反映しています（上書き編集可）
-      </div>
-      <label class="score-label">日にち</label>
-      <input class="score-input" type="date" id="sc-date">
-      <label class="score-label">コース名</label>
-      <input class="score-input" type="text" id="sc-course" placeholder="例：大利根カントリークラブ">
-      <label class="score-label">住所（任意）</label>
-      <input class="score-input" type="text" id="sc-address" placeholder="例：茨城県猿島郡境町...">
-      <button class="score-btn primary" onclick="createRound()">ラウンド作成</button>
     </div>
 
     <!-- 参加者選択 -->
@@ -437,9 +438,11 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
         <tbody id="sc-result-tbody"></tbody>
       </table>
       <div class="score-total" id="sc-total">合計罰金: $0</div>
-      <div class="score-actions">
+      <div class="score-actions" style="flex-direction:column;gap:10px">
+        <button class="score-btn primary" id="btn-save-score" onclick="saveScoreData(this)">💾 保存データ</button>
         <button class="score-btn secondary" onclick="copyPenaltyResults(this)">📧 結果をメールコピー</button>
       </div>
+      <div id="sc-save-msg" style="display:none;text-align:center;color:#88cc88;font-size:13px;margin-top:8px">✓ 保存しました</div>
     </div>
     </div>
   </div>
@@ -1006,48 +1009,27 @@ let scoreData = [];
 let currentPar = 72;
 
 async function initScore() {
-  // Reset state
   currentRound = null;
   selectedParticipants = [];
+  selectedParticipantIds.clear();
   scoreData = [];
   currentPar = 72;
 
-  // Par 入力セクションを表示
   document.getElementById('sc-par-input').style.display = 'block';
+  document.getElementById('sc-new-round-form').style.display = 'none';
   document.getElementById('sc-round-section').style.display = 'none';
   document.getElementById('sc-participants').style.display = 'none';
   document.getElementById('sc-entry').style.display = 'none';
   document.getElementById('sc-results').style.display = 'none';
 
-  // email本文作成で保存されたデータがあれば反映（上書き編集可能）
-  if (sharedRoundData) {
-    document.getElementById('sc-date').value = sharedRoundData.date || '';
-    document.getElementById('sc-course').value = sharedRoundData.course || '';
-    document.getElementById('sc-address').value = sharedRoundData.address || '';
-    // 保存元表示
-    document.getElementById('sc-shared-msg').style.display = 'block';
-  } else {
-    // 今日の日付をデフォルト設定
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    document.getElementById('sc-date').value = `${yyyy}-${mm}-${dd}`;
-    document.getElementById('sc-shared-msg').style.display = 'none';
-  }
-
-  // 新規ラウンドフォームを即座に表示
-  document.getElementById('sc-new-round').style.display = 'block';
-
-  // 過去ラウンドを非同期で読み込み
-  try {
-    const rounds = await db.rounds.getRecent(10);
-    const roundSelect = document.getElementById('sc-round');
-    roundSelect.innerHTML = '<option value="">＋ 新規ラウンド作成</option>' +
-      rounds.map(r => `<option value="${r.id}">${r.date} - ${r.course}</option>`).join('');
-  } catch(e) {
-    console.warn('rounds load:', e.message);
-  }
+  // email本文作成で保存されたデータがあれば反映
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  document.getElementById('sc-date').value = sharedRoundData?.date || `${yyyy}-${mm}-${dd}`;
+  document.getElementById('sc-course').value = sharedRoundData?.course || '';
+  document.getElementById('sc-shared-msg').style.display = sharedRoundData ? 'block' : 'none';
 }
 
 // ラウンド削除
@@ -1065,25 +1047,29 @@ async function deleteRound() {
     // 削除ボタンを隠す
     document.getElementById('btn-delete-round').style.display = 'none';
 
-    // 参加者・スコア・結果を隠す
     document.getElementById('sc-participants').style.display = 'none';
     document.getElementById('sc-entry').style.display = 'none';
     document.getElementById('sc-results').style.display = 'none';
-    document.getElementById('sc-new-round').style.display = 'block';
 
     // ドロップダウンを再読み込み
-    const rounds = await db.rounds.getRecent(10);
-    const roundSelect = document.getElementById('sc-round');
-    roundSelect.innerHTML = '<option value="">＋ 新規ラウンド作成</option>' +
-      rounds.map(r => `<option value="${r.id}">${r.date} - ${r.course}</option>`).join('');
-    roundSelect.value = '';
+    await reloadRoundSelect('');
+    currentRound = null;
   } catch (e) {
     toast(e.message, true);
   }
 }
 
+// ドロップダウン再読み込み共通関数
+async function reloadRoundSelect(selectId) {
+  const rounds = await db.rounds.getRecent(20);
+  const roundSelect = document.getElementById('sc-round');
+  roundSelect.innerHTML = '<option value="">-- ラウンドを選択 --</option>' +
+    rounds.map(r => `<option value="${r.id}">${r.date} — ${r.course}</option>`).join('');
+  if (selectId) roundSelect.value = selectId;
+}
+
 // Par 確定
-function confirmPar() {
+async function confirmPar() {
   const par = parseInt(document.getElementById('sc-par').value);
   if (!par || par < 70 || par > 75) {
     toast('Parを70-75で入力してください', true);
@@ -1091,7 +1077,9 @@ function confirmPar() {
   }
   currentPar = par;
   document.getElementById('sc-par-input').style.display = 'none';
+  document.getElementById('sc-new-round-form').style.display = 'block';
   document.getElementById('sc-round-section').style.display = 'block';
+  await reloadRoundSelect('');
   toast(`Par ${par} で設定しました`);
 }
 
@@ -1100,36 +1088,51 @@ document.getElementById('sc-round')?.addEventListener('change', async function()
   const id = this.value;
   const deleteBtn = document.getElementById('btn-delete-round');
   if (id === '') {
-    document.getElementById('sc-new-round').style.display = 'block';
     document.getElementById('sc-participants').style.display = 'none';
     document.getElementById('sc-entry').style.display = 'none';
     document.getElementById('sc-results').style.display = 'none';
     if (deleteBtn) deleteBtn.style.display = 'none';
+    currentRound = null;
   } else {
     currentRound = await db.rounds.get(id);
-    document.getElementById('sc-new-round').style.display = 'none';
     if (deleteBtn) deleteBtn.style.display = 'block';
     await loadParticipants();
   }
 });
 
-// ラウンド作成
-async function createRound() {
+// ラウンドを保存
+async function saveRound(btn) {
   const date = document.getElementById('sc-date').value;
   const course = document.getElementById('sc-course').value.trim();
-  const address = document.getElementById('sc-address').value.trim();
 
   if (!date || !course) {
     toast('日にちとコース名を入力してください', true);
     return;
   }
 
+  const orig = btn.textContent;
+  btn.textContent = '保存中...';
+  btn.disabled = true;
+
   try {
-    currentRound = await db.rounds.add({ date, course, address });
-    toast('ラウンドを作成しました');
-    document.getElementById('sc-new-round').style.display = 'none';
+    currentRound = await db.rounds.add({ date, course });
+    // ドロップダウンに追加して選択
+    await reloadRoundSelect(currentRound.id);
+    btn.textContent = '✓ 保存しました！';
+    btn.style.background = '#2a5a2a';
+    btn.style.color = '#88ff88';
+    toast(`「${course}」を保存しました`);
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.disabled = false;
+    }, 2000);
+    // 参加者選択へ進む
     await loadParticipants();
   } catch (e) {
+    btn.textContent = orig;
+    btn.disabled = false;
     toast(e.message, true);
   }
 }
@@ -1223,7 +1226,13 @@ function startScoreEntry() {
   tbody.innerHTML = selectedParticipants.map(p => `
     <tr>
       <td class="name">${p.name}</td>
-      <td><input type="text" class="score-input hc-input" data-id="${p.id}" value="${p.hc}" inputmode="numeric" style="width:100%;text-align:center" placeholder="-20～+20"></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:2px">
+          <button onclick="stepHC(this,-1)" style="font-family:inherit;font-size:18px;font-weight:bold;color:#ffd700;background:#1a1a3a;border:1px solid #444;width:32px;height:36px;cursor:pointer;flex-shrink:0;line-height:1">−</button>
+          <input type="text" class="score-input hc-input" data-id="${p.id}" value="${p.hc}" inputmode="numeric" style="width:52px;text-align:center;padding:6px 2px;flex:1">
+          <button onclick="stepHC(this,+1)" style="font-family:inherit;font-size:18px;font-weight:bold;color:#ffd700;background:#1a1a3a;border:1px solid #444;width:32px;height:36px;cursor:pointer;flex-shrink:0;line-height:1">＋</button>
+        </div>
+      </td>
       <td><input type="number" class="score-input score-input-val" data-id="${p.id}" placeholder="スコア" min="50" max="150"></td>
       <td class="penalty-display">—</td>
     </tr>
@@ -1248,9 +1257,20 @@ function parseHC(value) {
   if (!trimmed) return 0;
   const parsed = parseInt(trimmed);
   // 範囲外の値は制限
-  if (parsed < -20) return -20;
-  if (parsed > 20) return 20;
+  if (parsed < -30) return -30;
+  if (parsed > 30) return 30;
   return isNaN(parsed) ? 0 : parsed;
+}
+
+// HC ＋／− ボタン
+function stepHC(btn, delta) {
+  const row = btn.closest('tr');
+  const hcInput = row.querySelector('.hc-input');
+  const current = parseHC(hcInput.value);
+  const newVal = Math.max(-30, Math.min(30, current + delta));
+  hcInput.value = newVal;
+  // 罰金をリアルタイム更新
+  hcInput.dispatchEvent(new Event('input'));
 }
 
 // リアルタイム罰金表示
@@ -1372,31 +1392,49 @@ function calculatePenalties() {
   document.getElementById('sc-results').style.display = 'block';
 }
 
-// 結果を保存（HCを更新）
-async function saveResults() {
-  if (!currentRound || scoreData.length === 0) return;
+// 💾 保存データ ボタン
+async function saveScoreData(btn) {
+  if (!currentRound) {
+    toast('ラウンドを選択してください', true);
+    return;
+  }
+  if (scoreData.length === 0) {
+    toast('スコアデータがありません', true);
+    return;
+  }
+
+  const orig = btn.textContent;
+  btn.textContent = '保存中...';
+  btn.disabled = true;
 
   try {
     for (const d of scoreData) {
-      // スコアを保存
       await db.scores.add({
         roundId: currentRound.id,
         memberId: d.id,
         memberName: d.name,
         score: d.score,
         hc_at_time: d.hc,
-        penalty_strokes: d.over,
+        penalty_strokes: d.penalty,
         hc_after: d.hc_after
       });
-
-      // HCを更新（罰金がある場合のみ）
-      if (d.over > 0) {
-        await db.members.updateHC(d.id, d.hc_after);
-      }
     }
 
-    toast('スコアとHCを保存しました');
+    btn.textContent = '✓ 保存しました！';
+    btn.style.background = '#2a5a2a';
+    btn.style.color = '#88ff88';
+    document.getElementById('sc-save-msg').style.display = 'block';
+    toast('スコアと罰金データを保存しました');
+
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.disabled = false;
+    }, 2000);
   } catch (e) {
+    btn.textContent = orig;
+    btn.disabled = false;
     toast(e.message, true);
   }
 }
