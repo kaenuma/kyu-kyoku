@@ -87,15 +87,41 @@ const db = (function() {
 
   const rounds = {
     async add(data) {
+      const teeTimes = data.teeTimes || [];
       const round = {
         date: data.date,
         course: data.course,
+        address: data.address || '',
         par: data.par || 72,
+        teeTimes: teeTimes,
+        capacity: (teeTimes.length || 1) * 4,
+        feeCart: data.feeCart || '',
+        feeWalk: data.feeWalk || '',
+        organizerName: data.organizerName || '',
+        organizerEmail: data.organizerEmail || '',
         participants: data.participants || [],
         createdAt: new Date().toISOString()
       };
       const ref = await firestore.collection('rounds').add(round);
       return { id: ref.id, ...round };
+    },
+
+    async update(id, data) {
+      const updates = { updatedAt: new Date().toISOString() };
+      if (data.date !== undefined) updates.date = data.date;
+      if (data.course !== undefined) updates.course = data.course;
+      if (data.address !== undefined) updates.address = data.address;
+      if (data.teeTimes !== undefined) {
+        updates.teeTimes = data.teeTimes;
+        updates.capacity = (data.teeTimes.length || 1) * 4;
+      }
+      if (data.feeCart !== undefined) updates.feeCart = data.feeCart;
+      if (data.feeWalk !== undefined) updates.feeWalk = data.feeWalk;
+      if (data.organizerName !== undefined) updates.organizerName = data.organizerName;
+      if (data.organizerEmail !== undefined) updates.organizerEmail = data.organizerEmail;
+      await firestore.collection('rounds').doc(id).update(updates);
+      const doc = await firestore.collection('rounds').doc(id).get();
+      return { id: doc.id, ...doc.data() };
     },
 
     async get(id) {
@@ -141,12 +167,59 @@ const db = (function() {
     }
   };
 
+  const rsvps = {
+    async getByRound(roundId) {
+      const snap = await firestore.collection('rsvps')
+        .where('roundId', '==', roundId)
+        .get();
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+
+    async getJoinedByRound(roundId) {
+      const all = await this.getByRound(roundId);
+      return all.filter(r => r.status === 'joined');
+    },
+
+    async cancel(id) {
+      await firestore.collection('rsvps').doc(id).update({
+        status: 'cancelled',
+        cancelledAt: new Date().toISOString()
+      });
+      return true;
+    },
+
+    async delete(id) {
+      await firestore.collection('rsvps').doc(id).delete();
+      return true;
+    },
+
+    async deleteByRound(roundId) {
+      const snap = await firestore.collection('rsvps')
+        .where('roundId', '==', roundId)
+        .get();
+      const batch = firestore.batch();
+      snap.docs.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+      return snap.size;
+    }
+  };
+
   const config = {
     async getPassword() {
       const doc = await firestore.collection('config').doc('app').get();
       return doc.exists ? doc.data().password : null;
+    },
+
+    async getGasUrl() {
+      const doc = await firestore.collection('config').doc('app').get();
+      return doc.exists ? (doc.data().gasUrl || '') : '';
+    },
+
+    async setGasUrl(url) {
+      await firestore.collection('config').doc('app').set({ gasUrl: url }, { merge: true });
+      return true;
     }
   };
 
-  return { members, rounds, scores, config, PENALTY_RATE: 1 };
+  return { members, rounds, scores, rsvps, config, PENALTY_RATE: 1 };
 })();
