@@ -471,6 +471,7 @@ select.score-input{appearance:none;-webkit-appearance:none;background-image:url(
       </table>
       <div class="score-total" id="sc-total">合計罰金: $0</div>
       <div style="display:flex;flex-direction:column;gap:10px;margin:14px 0">
+        <button class="score-btn secondary" onclick="backToScoreEntry()" style="border-color:#ffaa44;color:#ffaa44">✏️ スコアを編集する</button>
         <button class="score-btn primary" id="btn-save-score" onclick="saveScoreData(this)">💾 保存データ</button>
         <button class="score-btn secondary" onclick="copyPenaltyResults(this)">📧 結果をメールコピー</button>
         <button class="score-btn secondary" onclick="copyParticipantEmails(this)">📋 参加者emailをコピー</button>
@@ -1337,6 +1338,15 @@ function calculateResults() {
   document.getElementById('sc-total').textContent = `合計罰金: $${total}`;
   document.getElementById('sc-play-entry').style.display   = 'none';
   document.getElementById('sc-play-results').style.display = 'block';
+}
+
+// ✏️ スコア入力画面に戻る（編集モード）
+function backToScoreEntry() {
+  document.getElementById('sc-play-results').style.display = 'none';
+  document.getElementById('sc-play-entry').style.display   = 'block';
+  // 既存スコアを保持したまま戻る（入力欄の value は維持される）
+  // スクロール位置を入力欄へ
+  document.getElementById('sc-play-entry').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // 💾 保存データ ボタン
